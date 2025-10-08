@@ -1,33 +1,59 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { phonemeSyncManager } from '../utils/phonemeSync'
+import { useAudioAnalyzer, type MouthPosition } from '../hooks/useAudioAnalyzer'
 import type { PhonemeType } from '../hooks/usePhonemeDetection'
 
 /**
- * Realistic Avatar with phoneme-based lip-sync animation
- * Overlays animated mouth on uploaded user image
+ * Realistic Avatar with AUDIO-DRIVEN lip-sync animation
+ * Uses Web Audio API for real-time analysis and 6 key mouth positions
+ * Falls back to timeline-based approach for compatibility
  */
 const RealisticAvatar = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationFrameRef = useRef<number>()
   const uploadedImageRef = useRef<HTMLImageElement | null>(null)
-  const variationImagesRef = useRef<Map<PhonemeType, HTMLImageElement>>(new Map())
+  const variationImagesRef = useRef<Map<string, HTMLImageElement>>(new Map()) // Now stores 6 keys: X, A, B, C, E, H
 
   const [isImageLoaded, setIsImageLoaded] = useState(false)
   const [blinkState, setBlinkState] = useState(0) // 0 = open, 1 = closing, 2 = closed, 3 = opening
-  const [currentPhoneme, setCurrentPhoneme] = useState<PhonemeType>('X')
+  const [currentMouthPosition, setCurrentMouthPosition] = useState<MouthPosition>('X')
   const [useAIVariations, setUseAIVariations] = useState(false)
+  const [useAudioDriven, setUseAudioDriven] = useState(true) // Prefer audio-driven
+
+  // Cross-fade transition state
+  const previousMouthPositionRef = useRef<MouthPosition>('X')
+  const transitionStartTimeRef = useRef<number>(0)
+  const TRANSITION_DURATION_MS = 80 // Fast but smooth cross-fade
 
   const { avatarConfig, emotion, voiceState } = useAppStore()
+  const { currentMouthPosition: audioMouthPosition, initializeAnalyzer, stopAnalyzer } = useAudioAnalyzer()
 
-  // Subscribe to phoneme changes from sync manager
+  // Update mouth position from audio analyzer (primary method)
   useEffect(() => {
-    const unsubscribe = phonemeSyncManager.subscribe((phoneme) => {
-      setCurrentPhoneme(phoneme)
-    })
+    if (useAudioDriven && audioMouthPosition !== previousMouthPositionRef.current) {
+      transitionStartTimeRef.current = Date.now()
+      previousMouthPositionRef.current = currentMouthPosition
+      setCurrentMouthPosition(audioMouthPosition)
+    }
+  }, [audioMouthPosition, useAudioDriven, currentMouthPosition])
 
-    return unsubscribe
-  }, [])
+  // Legacy: Subscribe to phoneme sync manager (fallback method)
+  useEffect(() => {
+    if (!useAudioDriven) {
+      const unsubscribe = phonemeSyncManager.subscribe((variationKey) => {
+        // Extract base phoneme from variation key (e.g., "X-hold" → "X")
+        const phoneme = variationKey.split('-')[0] as MouthPosition
+        if (phoneme !== previousMouthPositionRef.current) {
+          transitionStartTimeRef.current = Date.now()
+          previousMouthPositionRef.current = currentMouthPosition
+        }
+        setCurrentMouthPosition(phoneme)
+      })
+
+      return unsubscribe
+    }
+  }, [useAudioDriven, currentMouthPosition])
 
   // Load uploaded image
   useEffect(() => {
@@ -48,26 +74,27 @@ const RealisticAvatar = () => {
     }
   }, [avatarConfig.uploadedImage])
 
-  // Load AI-generated variations
+  // Load AI-generated variations (now 6 key positions: X, A, B, C, E, H)
   useEffect(() => {
     if (avatarConfig.generatedVariations) {
-      const phonemes: PhonemeType[] = ['X', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+      const variationKeys = Object.keys(avatarConfig.generatedVariations)
       let loadedCount = 0
+      const totalVariations = variationKeys.length
 
-      phonemes.forEach((phoneme) => {
-        const url = avatarConfig.generatedVariations![phoneme]
+      variationKeys.forEach((key) => {
+        const url = avatarConfig.generatedVariations![key]
         if (url) {
           const img = new Image()
           img.onload = () => {
-            variationImagesRef.current.set(phoneme, img)
+            variationImagesRef.current.set(key, img)
             loadedCount++
-            if (loadedCount === phonemes.length) {
+            if (loadedCount === totalVariations) {
               setUseAIVariations(true)
-              console.log('✅ All AI variations loaded')
+              console.log(`✅ All ${totalVariations} AI mouth positions loaded (audio-driven)`)
             }
           }
           img.onerror = () => {
-            console.error(`Failed to load AI variation for phoneme ${phoneme}`)
+            console.error(`Failed to load AI mouth position for ${key}`)
           }
           img.src = url
         }
@@ -102,10 +129,33 @@ const RealisticAvatar = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       if (isImageLoaded) {
-        // Use AI-generated variation if available
-        if (useAIVariations && variationImagesRef.current.has(currentPhoneme)) {
-          const variationImg = variationImagesRef.current.get(currentPhoneme)!
-          ctx.drawImage(variationImg, 0, 0, canvas.width, canvas.height)
+        // Calculate cross-fade transition progress (Phase 4)
+        const elapsedTransitionTime = Date.now() - transitionStartTimeRef.current
+        const transitionProgress = Math.min(elapsedTransitionTime / TRANSITION_DURATION_MS, 1.0)
+        const isTransitioning = transitionProgress < 1.0
+
+        // Use AI-generated mouth position if available (now 6 key positions)
+        if (useAIVariations && variationImagesRef.current.has(currentMouthPosition)) {
+          if (isTransitioning && variationImagesRef.current.has(previousMouthPositionRef.current)) {
+            // Cross-fade: draw previous image fading out, then current image fading in
+            const previousImg = variationImagesRef.current.get(previousMouthPositionRef.current)!
+            const currentImg = variationImagesRef.current.get(currentMouthPosition)!
+
+            // Draw previous image with decreasing opacity
+            ctx.globalAlpha = 1.0 - transitionProgress
+            ctx.drawImage(previousImg, 0, 0, canvas.width, canvas.height)
+
+            // Draw current image with increasing opacity
+            ctx.globalAlpha = transitionProgress
+            ctx.drawImage(currentImg, 0, 0, canvas.width, canvas.height)
+
+            // Reset alpha
+            ctx.globalAlpha = 1.0
+          } else {
+            // No transition or transition complete - draw current image normally
+            const variationImg = variationImagesRef.current.get(currentMouthPosition)!
+            ctx.drawImage(variationImg, 0, 0, canvas.width, canvas.height)
+          }
 
           // Blink animation is disabled when using AI-generated variations
           // (AI variations already include the complete face with eyes)
@@ -127,8 +177,8 @@ const RealisticAvatar = () => {
           const mouthWidth = (canvas.width * 0.15) * mouthSizeScale
           const mouthHeight = (canvas.height * 0.1) * mouthSizeScale
 
-          // Draw animated mouth based on phoneme
-          drawAnimatedMouth(ctx, currentPhoneme, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
+          // Draw animated mouth based on phoneme (extract letter from variation key)
+          drawAnimatedMouth(ctx, phonemeLetter, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
 
           // Add blink overlay with configurable eye position, spacing, and size
           if (blinkState > 0) {
@@ -155,7 +205,7 @@ const RealisticAvatar = () => {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isImageLoaded, currentPhoneme, blinkState, emotion, voiceState])
+  }, [isImageLoaded, currentMouthPosition, blinkState, emotion, voiceState, useAIVariations, avatarConfig])
 
   /**
    * Draw animated mouth overlay based on phoneme
@@ -365,7 +415,10 @@ const RealisticAvatar = () => {
         ref={canvasRef}
         width={400}
         height={400}
-        className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl shadow-xl"
+        className={`bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl shadow-xl ${
+          voiceState === 'idle' ? 'avatar-idle-pulse' :
+          voiceState === 'speaking' ? 'avatar-breathing' : ''
+        }`}
       />
       <div className="mt-4 text-center">
         <div className="text-sm text-gray-600 capitalize">
@@ -376,9 +429,9 @@ const RealisticAvatar = () => {
           {voiceState === 'processing' && '⚙️ Processing...'}
           {voiceState === 'speaking' && `🗣️ Speaking...`}
         </div>
-        {voiceState === 'speaking' && currentPhoneme !== 'X' && (
+        {voiceState === 'speaking' && currentMouthPosition !== 'X' && (
           <div className="text-xs text-purple-600 mt-1 font-mono">
-            Phoneme: [{currentPhoneme}] • {useAIVariations ? 'AI-Generated' : 'Overlay'} Lip-Sync
+            Mouth: [{currentMouthPosition}] • {useAIVariations ? 'AI-Generated' : 'Overlay'} • {useAudioDriven ? 'Audio-Driven' : 'Timeline'}
           </div>
         )}
         {useAIVariations && (

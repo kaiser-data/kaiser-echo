@@ -5,7 +5,7 @@ import { apiClient } from '../utils/api'
 const AIGenerationButton = () => {
   const { avatarConfig, setAvatarConfig, aiProvider } = useAppStore()
   const [isGenerating, setIsGenerating] = useState(false)
-  const [progress, setProgress] = useState({ current: 0, total: 9, phoneme: '' })
+  const [progress, setProgress] = useState({ current: 0, total: 6, phoneme: '' })
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
 
@@ -15,18 +15,19 @@ const AIGenerationButton = () => {
       return
     }
 
+    // Reset all state for new generation
     setIsGenerating(true)
     setError(null)
     setShowModal(true)
-    setProgress({ current: 0, total: 9, phoneme: 'Starting...' })
+    setProgress({ current: 0, total: 6, phoneme: 'Starting...' })
 
     try {
       console.log('🎨 Starting AI generation request...')
 
-      // Call backend API to generate variations with extended timeout for two-step process
-      // Step 1: Base normalization (~14s) + Step 2: 9 variations (~11s each) = ~114s + overhead = ~180s total
+      // Call backend API to generate 6 key positions with timeout for two-step process
+      // Step 1: Base normalization (~14s) + Step 2: 6 positions (~11s each) = ~80s + overhead = ~120s total
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 180000) // 3 minutes timeout
+      const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minutes timeout
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/generate-variations`, {
         method: 'POST',
@@ -66,7 +67,7 @@ const AIGenerationButton = () => {
         generatedVariations: data.variations,
       })
 
-      setProgress({ current: 9, total: 9, phoneme: 'Complete!' })
+      setProgress({ current: 6, total: 6, phoneme: 'Complete!' })
 
       // Show success message
       setTimeout(() => {
@@ -94,31 +95,14 @@ const AIGenerationButton = () => {
 
   return (
     <>
-      <div className="flex flex-col gap-2">
-        {/* AI Provider Selector */}
-        <select
-          value={aiProvider}
-          onChange={(e) => useAppStore.getState().setAiProvider(e.target.value as any)}
-          className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          disabled={isGenerating}
-        >
-          <option value="auto">🤖 Auto (Best Available)</option>
-          <option value="gemini">🍌 Gemini (Nano Banana) - Fast & Stable</option>
-          <option value="bfl">⚡ FLUX Ultra - Most Realistic</option>
-          <option value="fal">🚀 FAL.ai - Fastest</option>
-          <option value="replicate">🔁 Replicate</option>
-        </select>
-
-        {/* Generate Button */}
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className={`btn-secondary text-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-          title="Generate AI-powered realistic mouth variations"
-        >
-          {hasGeneratedVariations ? '🔄 Regenerate AI Mouth' : '✨ Generate AI Mouth'}
-        </button>
-      </div>
+      <button
+        onClick={handleGenerate}
+        disabled={isGenerating}
+        className={`btn-secondary text-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+        title="Generate AI-powered realistic mouth variations"
+      >
+        {hasGeneratedVariations ? '🔄 Regenerate AI Mouth' : '✨ Generate AI Mouth'}
+      </button>
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -165,8 +149,8 @@ const AIGenerationButton = () => {
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-800">
-                    💡 <strong>Tip:</strong> This takes about 30-60 seconds. We're generating 9
-                    photorealistic mouth positions for perfect lip-sync!
+                    💡 <strong>Tip:</strong> This takes about 1-2 minutes. We're generating 6
+                    key mouth positions optimized for audio-driven natural speech!
                   </p>
                 </div>
               </div>
@@ -177,10 +161,10 @@ const AIGenerationButton = () => {
                 <div className="text-center py-6">
                   <div className="text-6xl mb-4">✅</div>
                   <p className="text-gray-600">
-                    Successfully generated {progress.total} AI mouth variations!
+                    Successfully generated {progress.total} key mouth positions!
                   </p>
                   <p className="text-sm text-gray-500 mt-2">
-                    Your avatar will now use photorealistic lip-sync
+                    Your avatar will now use audio-driven natural lip-sync
                   </p>
                 </div>
 
@@ -212,7 +196,13 @@ const AIGenerationButton = () => {
                   <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">
                     Close
                   </button>
-                  <button onClick={handleGenerate} className="btn-primary flex-1">
+                  <button
+                    onClick={() => {
+                      setError(null)
+                      handleGenerate()
+                    }}
+                    className="btn-primary flex-1"
+                  >
                     Try Again
                   </button>
                 </div>

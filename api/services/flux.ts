@@ -18,51 +18,44 @@ export interface FluxGenerationResult {
 }
 
 /**
- * Phoneme-specific prompts for FLUX generation
- * Minimal descriptions focusing only on mouth/lip position
- * Used with 0.99 image_prompt_strength for maximum stability
+ * AUDIO-DRIVEN mouth positions (reduced from 27 to 6 for cost efficiency)
+ * Each position maps to audio features for real-time analysis
+ * Cost: 6 images × $0.04 = $0.24 per avatar (vs $1.08 for 27)
  */
-const PHONEME_PROMPTS: Record<string, string> = {
-  // X - Rest/Neutral (silent)
-  X: 'lips gently closed, mouth in natural relaxed neutral position',
+const MOUTH_POSITIONS: Record<string, string> = {
+  // X - Silent/Closed (amplitude near zero)
+  X: 'lips gently closed, neutral resting mouth',
 
-  // A - Small opening (ah, met)
-  A: 'lips slightly parted, small vertical oval opening, narrow gap between teeth visible',
+  // A - Small Open (low-mid amplitude, neutral frequency)
+  A: 'mouth slightly open, small oval, relaxed jaw',
 
-  // B - Wide open (mama, ah!)
-  B: 'mouth wide open, large oval opening, both rows of teeth fully visible',
+  // B - Wide Open (high amplitude, low frequency - "ah" sounds)
+  B: 'mouth WIDE OPEN, jaw dropped, both rows of teeth visible',
 
-  // C - Closed (mmm, ppp)
-  C: 'lips firmly pressed together, mouth completely sealed',
+  // C - Lips Pressed (detected silence after vowel - M, B, P sounds)
+  C: 'lips FIRMLY PRESSED together, sealed closed',
 
-  // D - Medium opening (bed, said)
-  D: 'lips moderately parted, medium oval opening, upper teeth visible',
+  // E - Rounded/Pursed (mid frequency, rounded vowels - O, U sounds)
+  E: 'lips PUCKERED FORWARD, rounded O-shape',
 
-  // E - Rounded (oooo, you)
-  E: 'lips puckered forward into small circular O-shape, lips protruding',
-
-  // F - Lip-teeth (fff, vvv)
-  F: 'upper front teeth touching lower lip, teeth-lip contact visible',
-
-  // G - Tongue (th)
-  G: 'tongue tip visible between front teeth, small mouth opening',
-
-  // H - Wide smile (eee)
-  H: 'wide horizontal smile, both rows of teeth showing, lips stretched',
+  // H - Wide Smile (high frequency - E, I sounds)
+  H: 'lips STRETCHED WIDE, broad smile, teeth showing'
 }
 
 /**
- * Generate a single mouth variation using FLUX or Gemini
+ * Generate a single mouth position using FLUX or Gemini
  * Uses user's provider preference or automatically detects available API
+ * Optimized to 6 key positions for cost efficiency and naturalness
  */
 export async function generateMouthVariation(
   env: Env,
   baseImageUrl: string,
   phoneme: string,
+  variation: string = 'hold', // Legacy parameter, now ignored
   provider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto' = 'auto'
 ): Promise<FluxGenerationResult> {
   const startTime = Date.now()
-  const prompt = PHONEME_PROMPTS[phoneme] || PHONEME_PROMPTS.A
+  const prompt = MOUTH_POSITIONS[phoneme] || MOUTH_POSITIONS.A
 
   // User selected specific provider
   if (provider === 'bfl') {
@@ -276,9 +269,9 @@ async function generateNormalizedBase(
 
   // Generate a clean, normalized, frontal portrait
   const requestBody = {
-    prompt: `A clean professional portrait photo of this exact person facing directly forward toward the camera at 180 degrees, neutral relaxed expression with mouth gently closed, good lighting, sharp focus, frontal view, photorealistic, high quality. The person should be in the center of the frame looking straight ahead.`,
+    prompt: `This exact person facing forward, mouth closed, neutral expression`,
     image_prompt: base64Image,
-    image_prompt_strength: 0.92, // High preservation but allow normalization
+    image_prompt_strength: 0.95, // HIGHER preservation for more stability
     aspect_ratio: '1:1',
     safety_tolerance: 6,
     output_format: 'jpeg',
@@ -375,9 +368,9 @@ async function generateWithBlackForest(
 
     // Step 2: Submit FLUX 1.1 Pro Ultra generation for mouth variation
     // Working from normalized base for maximum stability
-    // Minimal prompt focused only on mouth change
+    // ULTRA-MINIMAL prompt focused ONLY on mouth change
     const requestBody = {
-      prompt: `The same person with mouth position: ${prompt}. Everything else stays exactly the same - same face, same position, same background, same lighting.`,
+      prompt: `Same person, only change mouth: ${prompt}`,
       image_prompt: base64Image, // Base64 image for remixing
       image_prompt_strength: 0.99, // Maximum preservation = 99% identical, only 1% change for mouth
       aspect_ratio: '1:1',
@@ -498,7 +491,7 @@ async function generateWithGemini(
         {
           parts: [
             {
-              text: `Keep everything in this image exactly the same - same person, same face, same background, same lighting, same position, same angle. Only change the mouth to: ${prompt}. Everything else must remain identical.`
+              text: `Same person, only change mouth: ${prompt}`
             },
             {
               inline_data: {
@@ -630,12 +623,12 @@ async function generateWithReplicate(
 }
 
 /**
- * Generate all 9 mouth variations for a base image
+ * Generate 6 key mouth positions for audio-driven animation
  * TWO-STEP PROCESS for maximum stability (BFL only):
  * 1. Normalize uploaded image into FLUX training data space
- * 2. Generate all mouth variations from that normalized base
+ * 2. Generate 6 key mouth positions from that normalized base
  *
- * For Gemini: Uses conversational editing with same base image for consistency
+ * COST: 6 images × $0.04 = $0.24 per avatar (78% savings vs 27 variations)
  */
 export async function generateAllMouthVariations(
   env: Env,
@@ -643,7 +636,8 @@ export async function generateAllMouthVariations(
   onProgress?: (phoneme: string, index: number, total: number) => void,
   provider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto' = 'auto'
 ): Promise<Record<string, string>> {
-  const phonemes = ['X', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+  // Reduced to 6 key positions for audio-driven approach
+  const phonemes = ['X', 'A', 'B', 'C', 'E', 'H']
   const results: Record<string, string> = {}
 
   // STEP 1: Generate normalized base image (only for BFL provider)
@@ -659,30 +653,31 @@ export async function generateAllMouthVariations(
     }
   }
 
-  // STEP 2: Generate all mouth variations from normalized base
+  // STEP 2: Generate 6 key mouth positions from normalized base
   let completed = 0
-  const total = phonemes.length
+  const total = phonemes.length // 6 total
 
   // Generate sequentially to avoid rate limits
   for (const phoneme of phonemes) {
     try {
       onProgress?.(phoneme, completed, total)
 
-      const result = await generateMouthVariation(env, normalizedBase, phoneme, provider)
+      const result = await generateMouthVariation(env, normalizedBase, phoneme, 'hold', provider)
       results[phoneme] = result.imageUrl
 
       completed++
-      console.log(
-        `✅ Generated phoneme ${phoneme} (${completed}/${total}) in ${result.generationTime}ms`
-      )
+      console.log(`✅ Generated ${phoneme} (${completed}/${total}) in ${result.generationTime}ms`)
 
-      // Small delay to respect rate limits
+      // Delay to respect rate limits - longer for Gemini free tier
       if (completed < total) {
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        // Gemini free tier: ~15 requests/min = 4 second delay needed
+        // BFL/FAL/Replicate: 500ms is fine
+        const delay = provider === 'gemini' ? 4000 : 500
+        await new Promise((resolve) => setTimeout(resolve, delay))
       }
     } catch (error) {
-      console.error(`❌ Failed to generate phoneme ${phoneme}:`, error)
-      // Continue with other phonemes even if one fails
+      console.error(`❌ Failed to generate ${phoneme}:`, error)
+      // Continue with other variations even if one fails
     }
   }
 

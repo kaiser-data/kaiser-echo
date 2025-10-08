@@ -112,10 +112,9 @@ function App() {
 
         {/* Main Content */}
         <div className="grid md:grid-cols-2 gap-8 items-start">
-          {/* Left Column - Avatar and Voice */}
+          {/* Left Column - Avatar */}
           <div className="space-y-8">
             {avatarConfig.uploadedImage ? <RealisticAvatar /> : <Avatar />}
-            <VoiceInterface />
 
             {/* Memory Indicator */}
             {facts.length > 0 && (
@@ -144,9 +143,10 @@ function App() {
             )}
           </div>
 
-          {/* Right Column - Chat History */}
-          <div>
+          {/* Right Column - Chat History and Voice Interface */}
+          <div className="space-y-6">
             <ChatHistory />
+            <VoiceInterface />
           </div>
         </div>
 

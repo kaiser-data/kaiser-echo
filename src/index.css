@@ -24,4 +24,32 @@
   .input-field {
     @apply w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-primary-500 focus:outline-none transition-colors duration-200;
   }
+
+  /* Phase 5: Subtle micro-movement animations for natural breathing effect */
+  .avatar-breathing {
+    animation: breathing 4s ease-in-out infinite;
+  }
+
+  .avatar-idle-pulse {
+    animation: breathing 4s ease-in-out infinite, idle-pulse 6s ease-in-out infinite;
+  }
+}
+
+/* Phase 5: Keyframe animations for natural avatar movement */
+@keyframes breathing {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes idle-pulse {
+  0%, 100% {
+    transform: scale(1.0);
+  }
+  50% {
+    transform: scale(1.005);
+  }
 }

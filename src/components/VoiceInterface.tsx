@@ -8,6 +8,7 @@ import type { Message } from '../types'
 
 const VoiceInterface = () => {
   const [isProcessing, setIsProcessing] = useState(false)
+  const [textInput, setTextInput] = useState('')
 
   const {
     sessionId,
@@ -272,6 +273,38 @@ const VoiceInterface = () => {
         {language === 'de'
           ? 'Drücken Sie die Mikrofon-Taste und sprechen Sie. Ihre Nachricht wird automatisch gesendet.'
           : 'Press the mic button and speak. Your message will be sent automatically.'}
+      </div>
+
+      {/* Text Input Alternative */}
+      <div className="w-full max-w-md mt-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && textInput.trim() && !isProcessing && !isSpeaking) {
+                handleSendMessage(textInput.trim())
+                setTextInput('')
+              }
+            }}
+            disabled={isProcessing || isSpeaking || isListening}
+            placeholder={language === 'de' ? 'Nachricht eingeben...' : 'Type a message...'}
+            className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-primary-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <button
+            onClick={() => {
+              if (textInput.trim()) {
+                handleSendMessage(textInput.trim())
+                setTextInput('')
+              }
+            }}
+            disabled={!textInput.trim() || isProcessing || isSpeaking || isListening}
+            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {language === 'de' ? 'Senden' : 'Send'}
+          </button>
+        </div>
       </div>
     </div>
   )
