@@ -19,7 +19,6 @@ export interface Env {
   SUPABASE_URL: string
   SUPABASE_SERVICE_KEY: string
   FAL_API_KEY?: string
-  BLACK_FOREST_API_KEY?: string
   REPLICATE_API_KEY?: string
   ENVIRONMENT: string
 }

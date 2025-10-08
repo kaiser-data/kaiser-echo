@@ -8,6 +8,7 @@ import AvatarCustomizer from './components/AvatarCustomizer'
 import AvatarUploader from './components/AvatarUploader'
 import AvatarPositionControls from './components/AvatarPositionControls'
 import AIGenerationButton from './components/AIGenerationButton'
+import AIProviderSelector from './components/AIProviderSelector'
 import AuthModal from './components/AuthModal'
 import LanguageSelector from './components/LanguageSelector'
 
@@ -74,6 +75,7 @@ function App() {
 
           {avatarConfig.uploadedImage && (
             <>
+              <AIProviderSelector />
               <AvatarPositionControls />
               <AIGenerationButton />
             </>

@@ -32,6 +32,7 @@ interface AppState {
   showAuthModal: boolean
   showAvatarCustomizer: boolean
   language: 'en' | 'de'
+  aiProvider: 'fal' | 'replicate' | 'auto'
 
   // Actions
   setSessionId: (id: string) => void
@@ -46,6 +47,7 @@ interface AppState {
   setShowAuthModal: (show: boolean) => void
   setShowAvatarCustomizer: (show: boolean) => void
   setLanguage: (lang: 'en' | 'de') => void
+  setAiProvider: (provider: 'fal' | 'replicate' | 'auto') => void
   reset: () => void
 }
 
@@ -76,6 +78,7 @@ export const useAppStore = create<AppState>()(
       showAuthModal: false,
       showAvatarCustomizer: false,
       language: 'en',
+      aiProvider: 'auto',
 
       // Actions
       setSessionId: (id) => set({ sessionId: id }),
@@ -113,6 +116,8 @@ export const useAppStore = create<AppState>()(
 
       setLanguage: (language) => set({ language }),
 
+      setAiProvider: (aiProvider) => set({ aiProvider }),
+
       reset: () => set({
         sessionId: generateSessionId(),
         messages: [],
@@ -128,6 +133,7 @@ export const useAppStore = create<AppState>()(
         user: state.user,
         avatarConfig: state.avatarConfig,
         language: state.language,
+        aiProvider: state.aiProvider,
         facts: state.facts,
       }),
     }

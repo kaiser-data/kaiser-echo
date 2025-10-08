@@ -8,6 +8,7 @@ import { generateAllMouthVariations } from '../services/flux'
 export interface GenerateRequest {
   imageUrl: string
   sessionId: string
+  provider?: 'fal' | 'replicate' | 'auto'
 }
 
 export interface GenerateResponse {
@@ -30,7 +31,7 @@ export async function handleGenerateVariations(
   env: Env
 ): Promise<Response> {
   try {
-    const { imageUrl, sessionId }: GenerateRequest = await request.json()
+    const { imageUrl, sessionId, provider = 'auto' }: GenerateRequest = await request.json()
 
     if (!imageUrl) {
       return Response.json(
@@ -42,7 +43,7 @@ export async function handleGenerateVariations(
       )
     }
 
-    console.log(`🎨 Starting mouth variation generation for session ${sessionId}`)
+    console.log(`🎨 Starting mouth variation generation for session ${sessionId} using provider: ${provider}`)
 
     // Generate all variations
     const variations = await generateAllMouthVariations(
@@ -51,7 +52,8 @@ export async function handleGenerateVariations(
       (phoneme, current, total) => {
         console.log(`Progress: ${phoneme} (${current + 1}/${total})`)
         // TODO: Send progress updates via WebSocket or Server-Sent Events
-      }
+      },
+      provider
     )
 
     console.log(`✅ Generated ${Object.keys(variations).length} mouth variations`)

@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore'
 import { apiClient } from '../utils/api'
 
 const AIGenerationButton = () => {
-  const { avatarConfig, setAvatarConfig } = useAppStore()
+  const { avatarConfig, setAvatarConfig, aiProvider } = useAppStore()
   const [isGenerating, setIsGenerating] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 9, phoneme: '' })
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +30,7 @@ const AIGenerationButton = () => {
         body: JSON.stringify({
           imageUrl: avatarConfig.uploadedImage,
           sessionId: useAppStore.getState().sessionId,
+          provider: aiProvider, // Send user's provider preference
         }),
       })
 
