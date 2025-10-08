@@ -21,6 +21,7 @@ export interface Env {
   BFL_API_KEY?: string
   FAL_API_KEY?: string
   REPLICATE_API_KEY?: string
+  GEMINI_API_KEY?: string
   ENVIRONMENT: string
 }
 

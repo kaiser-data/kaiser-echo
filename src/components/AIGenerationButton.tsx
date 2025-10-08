@@ -21,7 +21,13 @@ const AIGenerationButton = () => {
     setProgress({ current: 0, total: 9, phoneme: 'Starting...' })
 
     try {
-      // Call backend API to generate variations
+      console.log('🎨 Starting AI generation request...')
+
+      // Call backend API to generate variations with extended timeout for two-step process
+      // Step 1: Base normalization (~14s) + Step 2: 9 variations (~11s each) = ~114s + overhead = ~180s total
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 180000) // 3 minutes timeout
+
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/generate-variations`, {
         method: 'POST',
         headers: {
@@ -32,17 +38,27 @@ const AIGenerationButton = () => {
           sessionId: useAppStore.getState().sessionId,
           provider: aiProvider, // Send user's provider preference
         }),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
+      console.log('✅ Response received:', response.status, response.statusText)
+
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ Response not OK:', errorText)
         throw new Error(`Generation failed: ${response.statusText}`)
       }
 
       const data = await response.json()
+      console.log('📦 Response data:', data)
 
       if (!data.success) {
+        console.error('❌ Generation not successful:', data.error)
         throw new Error(data.error || 'Generation failed')
       }
+
+      console.log('✨ Variations received:', Object.keys(data.variations || {}).length)
 
       // Save generated variations
       setAvatarConfig({
@@ -57,7 +73,11 @@ const AIGenerationButton = () => {
         setShowModal(false)
       }, 2000)
     } catch (err) {
-      console.error('Generation error:', err)
+      console.error('🔴 Generation error:', err)
+      if (err instanceof Error) {
+        console.error('🔴 Error name:', err.name)
+        console.error('🔴 Error message:', err.message)
+      }
       setError(err instanceof Error ? err.message : 'Failed to generate variations')
     } finally {
       setIsGenerating(false)
@@ -74,14 +94,31 @@ const AIGenerationButton = () => {
 
   return (
     <>
-      <button
-        onClick={handleGenerate}
-        disabled={isGenerating}
-        className={`btn-secondary text-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-        title="Generate AI-powered realistic mouth variations"
-      >
-        {hasGeneratedVariations ? '🔄 Regenerate AI Mouth' : '✨ Generate AI Mouth'}
-      </button>
+      <div className="flex flex-col gap-2">
+        {/* AI Provider Selector */}
+        <select
+          value={aiProvider}
+          onChange={(e) => useAppStore.getState().setAiProvider(e.target.value as any)}
+          className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          disabled={isGenerating}
+        >
+          <option value="auto">🤖 Auto (Best Available)</option>
+          <option value="gemini">🍌 Gemini (Nano Banana) - Fast & Stable</option>
+          <option value="bfl">⚡ FLUX Ultra - Most Realistic</option>
+          <option value="fal">🚀 FAL.ai - Fastest</option>
+          <option value="replicate">🔁 Replicate</option>
+        </select>
+
+        {/* Generate Button */}
+        <button
+          onClick={handleGenerate}
+          disabled={isGenerating}
+          className={`btn-secondary text-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title="Generate AI-powered realistic mouth variations"
+        >
+          {hasGeneratedVariations ? '🔄 Regenerate AI Mouth' : '✨ Generate AI Mouth'}
+        </button>
+      </div>
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

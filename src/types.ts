@@ -30,6 +30,7 @@ export interface AvatarConfig {
   mouthSize?: number // Mouth size scale (0.5-2.0)
   eyeY?: number // Eye vertical position (0-100%)
   eyeSpacing?: number // Eye spacing scale (0.5-2.0)
+  eyeSize?: number // Eye size scale (0.5-2.0)
   generatedVariations?: Record<string, string> // AI-generated mouth variations (phoneme -> imageUrl)
 }
 

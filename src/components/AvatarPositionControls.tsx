@@ -7,6 +7,7 @@ interface AvatarPosition {
   mouthSize: number // 0.5-2.0 (scale)
   eyeY: number // 0-100 (percentage)
   eyeSpacing: number // 0.5-2.0 (scale)
+  eyeSize: number // 0.5-2.0 (scale)
 }
 
 const AvatarPositionControls = () => {
@@ -18,6 +19,7 @@ const AvatarPositionControls = () => {
     mouthSize: avatarConfig.mouthSize || 1.0,
     eyeY: avatarConfig.eyeY || 40,
     eyeSpacing: avatarConfig.eyeSpacing || 1.0,
+    eyeSize: avatarConfig.eyeSize || 1.0,
   })
 
   const [showControls, setShowControls] = useState(false)
@@ -30,6 +32,7 @@ const AvatarPositionControls = () => {
       mouthSize: position.mouthSize,
       eyeY: position.eyeY,
       eyeSpacing: position.eyeSpacing,
+      eyeSize: position.eyeSize,
     })
     setShowControls(false)
   }
@@ -41,6 +44,7 @@ const AvatarPositionControls = () => {
       mouthSize: 1.0,
       eyeY: 40,
       eyeSpacing: 1.0,
+      eyeSize: 1.0,
     }
     setPosition(defaultPosition)
     setAvatarConfig({
@@ -186,6 +190,28 @@ const AvatarPositionControls = () => {
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>← Closer</span>
                   <span>Further →</span>
+                </div>
+              </div>
+
+              {/* Eye Size */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Eye Size: {position.eyeSize.toFixed(1)}x
+                </label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={position.eyeSize}
+                  onChange={(e) =>
+                    setPosition({ ...position, eyeSize: parseFloat(e.target.value) })
+                  }
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>Smaller</span>
+                  <span>Larger</span>
                 </div>
               </div>
             </div>

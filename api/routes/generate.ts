@@ -4,11 +4,12 @@
 
 import type { Env } from '../index'
 import { generateAllMouthVariations } from '../services/flux'
+import { jsonResponse } from '../utils/cors'
 
 export interface GenerateRequest {
   imageUrl: string
   sessionId: string
-  provider?: 'bfl' | 'fal' | 'replicate' | 'auto'
+  provider?: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto'
 }
 
 export interface GenerateResponse {
@@ -34,12 +35,12 @@ export async function handleGenerateVariations(
     const { imageUrl, sessionId, provider = 'auto' }: GenerateRequest = await request.json()
 
     if (!imageUrl) {
-      return Response.json(
+      return jsonResponse(
         {
           success: false,
           error: 'Image URL is required',
         } as GenerateResponse,
-        { status: 400 }
+        400
       )
     }
 
@@ -58,19 +59,19 @@ export async function handleGenerateVariations(
 
     console.log(`✅ Generated ${Object.keys(variations).length} mouth variations`)
 
-    return Response.json({
+    return jsonResponse({
       success: true,
       variations,
     } as GenerateResponse)
   } catch (error) {
     console.error('Generation error:', error)
 
-    return Response.json(
+    return jsonResponse(
       {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       } as GenerateResponse,
-      { status: 500 }
+      500
     )
   }
 }

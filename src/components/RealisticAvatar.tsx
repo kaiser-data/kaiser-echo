@@ -107,11 +107,8 @@ const RealisticAvatar = () => {
           const variationImg = variationImagesRef.current.get(currentPhoneme)!
           ctx.drawImage(variationImg, 0, 0, canvas.width, canvas.height)
 
-          // Add blink overlay
-          if (blinkState > 0) {
-            const eyeYPercent = avatarConfig.eyeY || 40
-            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent)
-          }
+          // Blink animation is disabled when using AI-generated variations
+          // (AI variations already include the complete face with eyes)
         } else if (uploadedImageRef.current) {
           // Fallback to overlay method
           ctx.drawImage(uploadedImageRef.current, 0, 0, canvas.width, canvas.height)
@@ -122,6 +119,7 @@ const RealisticAvatar = () => {
           const mouthSizeScale = avatarConfig.mouthSize || 1.0
           const eyeYPercent = avatarConfig.eyeY || 40
           const eyeSpacingScale = avatarConfig.eyeSpacing || 1.0
+          const eyeSizeScale = avatarConfig.eyeSize || 1.0
 
           // Calculate mouth position
           const mouthCenterX = (canvas.width * mouthXPercent) / 100
@@ -132,9 +130,9 @@ const RealisticAvatar = () => {
           // Draw animated mouth based on phoneme
           drawAnimatedMouth(ctx, currentPhoneme, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
 
-          // Add blink overlay with configurable eye position and spacing
+          // Add blink overlay with configurable eye position, spacing, and size
           if (blinkState > 0) {
-            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent, eyeSpacingScale)
+            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent, eyeSpacingScale, eyeSizeScale)
           }
 
           // Add subtle emotion effects
@@ -272,27 +270,43 @@ const RealisticAvatar = () => {
     height: number,
     state: number,
     eyeYPercent: number = 40,
-    eyeSpacingScale: number = 1.0
+    eyeSpacingScale: number = 1.0,
+    eyeSizeScale: number = 1.0
   ) => {
     const eyeY = (height * eyeYPercent) / 100
     const eyeSpacing = (width * 0.15) * eyeSpacingScale
-    const eyeWidth = width * 0.08
 
-    const blinkProgress = state === 1 ? 0.5 : state === 2 ? 1.0 : 0.5
-    const blinkHeight = eyeWidth * 0.7 * blinkProgress
+    // Base eye dimensions (before size scaling)
+    const baseEyeWidth = width * 0.08
+    const baseEyeHeight = baseEyeWidth * 0.7
+
+    // Apply size scaling uniformly to both width and height
+    const eyeWidth = baseEyeWidth * eyeSizeScale
+    const eyeHeight = baseEyeHeight * eyeSizeScale
+
+    // Calculate blink progress (0 = no blink, 1 = fully closed)
+    const blinkProgress = state === 1 ? 0.5 : state === 2 ? 1.0 : state === 3 ? 0.5 : 0
+    const blinkHeight = eyeHeight * blinkProgress
 
     ctx.save()
     ctx.globalCompositeOperation = 'multiply'
     ctx.fillStyle = 'rgba(180, 150, 130, 0.85)'
 
+    // Calculate positions (ensure perfect symmetry)
+    const centerX = Math.floor(width / 2)
+    const leftEyeX = centerX - eyeSpacing
+    const rightEyeX = centerX + eyeSpacing
+    const eyeRadiusX = eyeWidth / 2
+    const eyeRadiusY = blinkHeight
+
     // Left eyelid
     ctx.beginPath()
-    ctx.ellipse(width / 2 - eyeSpacing, eyeY, eyeWidth / 2, blinkHeight, 0, 0, Math.PI * 2)
+    ctx.ellipse(leftEyeX, eyeY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2)
     ctx.fill()
 
-    // Right eyelid
+    // Right eyelid (mirror symmetry)
     ctx.beginPath()
-    ctx.ellipse(width / 2 + eyeSpacing, eyeY, eyeWidth / 2, blinkHeight, 0, 0, Math.PI * 2)
+    ctx.ellipse(rightEyeX, eyeY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2)
     ctx.fill()
 
     ctx.restore()

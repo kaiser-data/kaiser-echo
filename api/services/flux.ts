@@ -19,29 +19,47 @@ export interface FluxGenerationResult {
 
 /**
  * Phoneme-specific prompts for FLUX generation
- * These create photorealistic mouth positions
+ * Minimal descriptions focusing only on mouth/lip position
+ * Used with 0.99 image_prompt_strength for maximum stability
  */
 const PHONEME_PROMPTS: Record<string, string> = {
-  X: 'mouth closed, lips gently together, calm neutral expression, relaxed face',
-  A: 'mouth slightly open, relaxed neutral expression, soft lips',
-  B: 'mouth wide open, saying "ah" sound, visible upper and lower teeth, open jaw',
-  C: 'lips pressed tightly together, saying "m" sound, closed mouth, pursed lips',
-  D: 'mouth moderately open, saying "eh" sound, teeth slightly visible',
-  E: 'lips rounded and puckered forward, saying "oo" sound, circular mouth shape',
-  F: 'upper front teeth touching lower lip, saying "f" sound, lip-teeth contact',
-  G: 'mouth open, tongue tip visible between teeth, saying "th" sound',
-  H: 'wide smile, lips stretched horizontally, saying "ee" sound, teeth showing',
+  // X - Rest/Neutral (silent)
+  X: 'lips gently closed, mouth in natural relaxed neutral position',
+
+  // A - Small opening (ah, met)
+  A: 'lips slightly parted, small vertical oval opening, narrow gap between teeth visible',
+
+  // B - Wide open (mama, ah!)
+  B: 'mouth wide open, large oval opening, both rows of teeth fully visible',
+
+  // C - Closed (mmm, ppp)
+  C: 'lips firmly pressed together, mouth completely sealed',
+
+  // D - Medium opening (bed, said)
+  D: 'lips moderately parted, medium oval opening, upper teeth visible',
+
+  // E - Rounded (oooo, you)
+  E: 'lips puckered forward into small circular O-shape, lips protruding',
+
+  // F - Lip-teeth (fff, vvv)
+  F: 'upper front teeth touching lower lip, teeth-lip contact visible',
+
+  // G - Tongue (th)
+  G: 'tongue tip visible between front teeth, small mouth opening',
+
+  // H - Wide smile (eee)
+  H: 'wide horizontal smile, both rows of teeth showing, lips stretched',
 }
 
 /**
- * Generate a single mouth variation using FLUX
+ * Generate a single mouth variation using FLUX or Gemini
  * Uses user's provider preference or automatically detects available API
  */
 export async function generateMouthVariation(
   env: Env,
   baseImageUrl: string,
   phoneme: string,
-  provider: 'bfl' | 'fal' | 'replicate' | 'auto' = 'auto'
+  provider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto' = 'auto'
 ): Promise<FluxGenerationResult> {
   const startTime = Date.now()
   const prompt = PHONEME_PROMPTS[phoneme] || PHONEME_PROMPTS.A
@@ -71,8 +89,19 @@ export async function generateMouthVariation(
     return await generateWithReplicate(env, baseImageUrl, phoneme, prompt, startTime)
   }
 
-  // Auto mode: Priority BFL > FAL > REPLICATE
-  if (env.BFL_API_KEY) {
+  if (provider === 'gemini') {
+    if (!env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY not configured. Add it to .dev.vars or switch to "auto" provider.')
+    }
+    console.log('🎨 Using Gemini 2.5 Flash Image (user selected)')
+    return await generateWithGemini(env, baseImageUrl, phoneme, prompt, startTime)
+  }
+
+  // Auto mode: Priority Gemini > BFL > FAL > REPLICATE
+  if (env.GEMINI_API_KEY) {
+    console.log('🎨 Using Gemini 2.5 Flash Image (auto-detected)')
+    return await generateWithGemini(env, baseImageUrl, phoneme, prompt, startTime)
+  } else if (env.BFL_API_KEY) {
     console.log('🎨 Using Black Forest Labs direct API (auto-detected)')
     return await generateWithBlackForest(env, baseImageUrl, phoneme, prompt, startTime)
   } else if (env.FAL_API_KEY) {
@@ -82,7 +111,7 @@ export async function generateMouthVariation(
     console.log('🎨 Using Replicate (auto-detected)')
     return await generateWithReplicate(env, baseImageUrl, phoneme, prompt, startTime)
   } else {
-    throw new Error('No API key configured. Add BFL_API_KEY, FAL_API_KEY, or REPLICATE_API_KEY to .dev.vars')
+    throw new Error('No API key configured. Add GEMINI_API_KEY, BFL_API_KEY, FAL_API_KEY, or REPLICATE_API_KEY to .dev.vars')
   }
 }
 
@@ -140,7 +169,175 @@ async function generateWithFal(
 }
 
 /**
- * Generate using Black Forest Labs direct API (api.bfl.ai)
+ * Convert base64 data URL to a public Supabase Storage URL
+ * BFL API requires publicly accessible URLs, not data: URLs
+ */
+async function uploadBase64ToCloudflare(
+  env: Env,
+  baseImageUrl: string,
+  phoneme: string
+): Promise<string> {
+  console.log(`🔍 DEBUG: Checking image URL format for phoneme ${phoneme}`)
+
+  // If it's already an https:// URL, return it
+  if (baseImageUrl.startsWith('https://') || baseImageUrl.startsWith('http://')) {
+    console.log(`✅ Image URL is already public: ${baseImageUrl.substring(0, 50)}...`)
+    return baseImageUrl
+  }
+
+  // Convert base64 data URL to binary
+  if (!baseImageUrl.startsWith('data:image/')) {
+    throw new Error(`Invalid image URL format: ${baseImageUrl.substring(0, 50)}...`)
+  }
+
+  console.log(`⚠️ WARNING: Base64 data URL detected - uploading to Supabase Storage...`)
+
+  try {
+    // Extract MIME type and base64 data
+    const matches = baseImageUrl.match(/^data:([^;]+);base64,(.+)$/)
+    if (!matches) {
+      throw new Error('Invalid base64 data URL format')
+    }
+
+    const mimeType = matches[1]
+    const base64Data = matches[2]
+
+    // Determine file extension from MIME type
+    const extension = mimeType.split('/')[1] || 'png'
+
+    // Generate unique filename
+    const timestamp = Date.now()
+    const randomId = Math.random().toString(36).substring(2, 15)
+    const filename = `avatars/phoneme-${phoneme}-${timestamp}-${randomId}.${extension}`
+
+    console.log(`📤 Uploading to Supabase Storage: ${filename}`)
+
+    // Convert base64 to binary
+    const binaryString = atob(base64Data)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    // Upload to Supabase Storage
+    const uploadResponse = await fetch(
+      `${env.SUPABASE_URL}/storage/v1/object/avatars/${filename}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          'Content-Type': mimeType,
+        },
+        body: bytes,
+      }
+    )
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text()
+      console.error(`❌ Supabase upload failed:`, errorText)
+      throw new Error(`Supabase upload failed: ${uploadResponse.status} - ${errorText}`)
+    }
+
+    // Get public URL
+    const publicUrl = `${env.SUPABASE_URL}/storage/v1/object/public/avatars/${filename}`
+    console.log(`✅ Uploaded successfully: ${publicUrl}`)
+
+    return publicUrl
+  } catch (error) {
+    console.error(`🔴 ERROR uploading to Supabase:`, error)
+    throw new Error(`Failed to upload image to Supabase Storage: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
+ * Step 1: Generate normalized base image from user upload
+ * This creates a FLUX-native image that's closer to training data
+ * and provides a stable foundation for mouth variations
+ */
+async function generateNormalizedBase(
+  env: Env,
+  uploadedImageUrl: string
+): Promise<string> {
+  console.log(`🎨 STEP 1: Generating normalized base image from upload...`)
+
+  const publicImageUrl = await uploadBase64ToCloudflare(env, uploadedImageUrl, 'base')
+
+  // Convert to base64
+  const imageResponse = await fetch(publicImageUrl)
+  const imageBuffer = await imageResponse.arrayBuffer()
+  const bytes = new Uint8Array(imageBuffer)
+  let binary = ''
+  const chunkSize = 8192
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+    binary += String.fromCharCode(...chunk)
+  }
+  const base64Image = btoa(binary)
+
+  // Generate a clean, normalized, frontal portrait
+  const requestBody = {
+    prompt: `A clean professional portrait photo of this exact person facing directly forward toward the camera at 180 degrees, neutral relaxed expression with mouth gently closed, good lighting, sharp focus, frontal view, photorealistic, high quality. The person should be in the center of the frame looking straight ahead.`,
+    image_prompt: base64Image,
+    image_prompt_strength: 0.92, // High preservation but allow normalization
+    aspect_ratio: '1:1',
+    safety_tolerance: 6,
+    output_format: 'jpeg',
+    raw: true, // Use raw mode for maximum control
+  }
+
+  const response = await fetch('https://api.bfl.ai/v1/flux-pro-1.1-ultra', {
+    method: 'POST',
+    headers: {
+      'x-key': env.BFL_API_KEY!,
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error(`❌ Base normalization failed:`, error)
+    throw new Error(`BFL API error: ${response.status} - ${error}`)
+  }
+
+  const result = await response.json()
+  const pollingUrl = result.polling_url || `https://api.bfl.ai/v1/get_result?id=${result.id}`
+
+  // Poll for completion
+  let pollResult: any
+  let attempts = 0
+  const maxAttempts = 60
+
+  while (attempts < maxAttempts) {
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    const pollResponse = await fetch(pollingUrl, {
+      headers: {
+        'x-key': env.BFL_API_KEY!,
+        'accept': 'application/json',
+      },
+    })
+    pollResult = await pollResponse.json()
+    console.log(`🔄 Base normalization poll ${attempts + 1}/${maxAttempts}: ${pollResult.status}`)
+
+    if (pollResult.status === 'Ready') break
+    if (pollResult.status === 'Error' || pollResult.status === 'Failed') {
+      throw new Error(`Base normalization failed: ${pollResult.error || pollResult.status}`)
+    }
+    attempts++
+  }
+
+  if (!pollResult || pollResult.status !== 'Ready') {
+    throw new Error('Base normalization timeout')
+  }
+
+  console.log(`✅ STEP 1 COMPLETE: Normalized base image generated`)
+  return pollResult.result.sample
+}
+
+/**
+ * Step 2: Generate mouth variation from normalized base
+ * Uses the FLUX-native base image for maximum stability
  */
 async function generateWithBlackForest(
   env: Env,
@@ -149,34 +346,68 @@ async function generateWithBlackForest(
   prompt: string,
   startTime: number
 ): Promise<FluxGenerationResult> {
+  console.log(`🔍 DEBUG: Entering generateWithBlackForest for phoneme ${phoneme}`)
+  console.log(`🔍 DEBUG: BFL_API_KEY exists:`, !!env.BFL_API_KEY)
+  console.log(`🔍 DEBUG: BFL_API_KEY value:`, env.BFL_API_KEY ? `${env.BFL_API_KEY.substring(0, 10)}...` : 'MISSING')
+  console.log(`🔍 DEBUG: Base image URL:`, baseImageUrl.substring(0, 100))
+
   try {
-    // Step 1: Submit image-to-image generation request
-    const response = await fetch('https://api.bfl.ai/v1/flux-pro-1.1', {
+    // Use the base image directly (should already be normalized FLUX output)
+    const publicImageUrl = baseImageUrl.startsWith('http') ? baseImageUrl : await uploadBase64ToCloudflare(env, baseImageUrl, phoneme)
+
+    console.log(`🎨 Sending generation request to BFL API for phoneme ${phoneme}`)
+
+    // Convert image URL to base64 for image_prompt parameter
+    console.log(`📥 Fetching image from URL to convert to base64...`)
+    const imageResponse = await fetch(publicImageUrl)
+    const imageBuffer = await imageResponse.arrayBuffer()
+
+    // Convert ArrayBuffer to base64 in chunks to avoid stack overflow
+    const bytes = new Uint8Array(imageBuffer)
+    let binary = ''
+    const chunkSize = 8192 // Process 8KB at a time
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+      binary += String.fromCharCode(...chunk)
+    }
+    const base64Image = btoa(binary)
+    console.log(`✅ Converted image to base64 (${base64Image.length} chars)`)
+
+    // Step 2: Submit FLUX 1.1 Pro Ultra generation for mouth variation
+    // Working from normalized base for maximum stability
+    // Minimal prompt focused only on mouth change
+    const requestBody = {
+      prompt: `The same person with mouth position: ${prompt}. Everything else stays exactly the same - same face, same position, same background, same lighting.`,
+      image_prompt: base64Image, // Base64 image for remixing
+      image_prompt_strength: 0.99, // Maximum preservation = 99% identical, only 1% change for mouth
+      aspect_ratio: '1:1',
+      safety_tolerance: 6, // Least strict (0-6 scale)
+      output_format: 'jpeg',
+      raw: true, // Raw mode for maximum control and consistency
+    }
+
+    console.log(`🔍 DEBUG: Request body:`, JSON.stringify({ ...requestBody, image_prompt: `[base64 ${base64Image.length} chars]` }, null, 2))
+
+    const response = await fetch('https://api.bfl.ai/v1/flux-pro-1.1-ultra', {
       method: 'POST',
       headers: {
         'x-key': env.BFL_API_KEY!,
         'Content-Type': 'application/json',
         'accept': 'application/json',
       },
-      body: JSON.stringify({
-        prompt: `photorealistic portrait, same person, ${prompt}, professional photography, high detail, consistent lighting, front-facing, sharp focus`,
-        image_url: baseImageUrl,
-        strength: 0.75, // Keep most of the original image
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
-        num_images: 1,
-        enable_safety_checker: false,
-        output_format: 'jpeg',
-      }),
+      body: JSON.stringify(requestBody),
     })
+
+    console.log(`🔍 DEBUG: Response status:`, response.status)
 
     if (!response.ok) {
       const error = await response.text()
-      console.error(`BFL generation failed for phoneme ${phoneme}:`, error)
-      throw new Error(`BFL API error: ${response.status}`)
+      console.error(`❌ BFL generation failed for phoneme ${phoneme}:`, error)
+      throw new Error(`BFL API error: ${response.status} - ${error}`)
     }
 
     const result = await response.json()
+    console.log(`✅ BFL generation submitted, polling for result...`, result)
 
     // Step 2: Poll for completion using the polling URL
     const pollingUrl = result.polling_url || `https://api.bfl.ai/v1/get_result?id=${result.id}`
@@ -196,6 +427,7 @@ async function generateWithBlackForest(
       })
 
       pollResult = await pollResponse.json()
+      console.log(`🔄 Poll attempt ${attempts + 1}/${maxAttempts}: ${pollResult.status}`)
 
       if (pollResult.status === 'Ready') {
         break
@@ -210,13 +442,118 @@ async function generateWithBlackForest(
       throw new Error('BFL generation timeout - took longer than 2 minutes')
     }
 
+    console.log(`✅ BFL generation complete for phoneme ${phoneme}`)
+    console.log(`🔍 DEBUG: Poll result:`, JSON.stringify(pollResult, null, 2))
+    console.log(`🖼️ Generated image URL:`, pollResult.result?.sample)
+
     return {
       imageUrl: pollResult.result.sample,
       phoneme,
       generationTime: Date.now() - startTime,
     }
   } catch (error) {
-    console.error('Black Forest Labs API generation error:', error)
+    console.error(`🔴 ERROR in generateWithBlackForest for phoneme ${phoneme}:`, error)
+    if (error instanceof Error) {
+      console.error(`🔴 ERROR message:`, error.message)
+      console.error(`🔴 ERROR stack:`, error.stack)
+    }
+    throw error
+  }
+}
+
+/**
+ * Generate using Gemini 2.5 Flash Image (Nano Banana)
+ * Uses conversational editing for maximum consistency
+ */
+async function generateWithGemini(
+  env: Env,
+  baseImageUrl: string,
+  phoneme: string,
+  prompt: string,
+  startTime: number
+): Promise<FluxGenerationResult> {
+  try {
+    // Convert image to base64 if needed
+    let imageData: string
+    if (baseImageUrl.startsWith('data:image/')) {
+      // Already base64
+      imageData = baseImageUrl.split(',')[1]
+    } else {
+      // Fetch and convert
+      const imageResponse = await fetch(baseImageUrl)
+      const imageBuffer = await imageResponse.arrayBuffer()
+      const bytes = new Uint8Array(imageBuffer)
+      let binary = ''
+      const chunkSize = 8192
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+        binary += String.fromCharCode(...chunk)
+      }
+      imageData = btoa(binary)
+    }
+
+    // Gemini API request with image editing
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: `Keep everything in this image exactly the same - same person, same face, same background, same lighting, same position, same angle. Only change the mouth to: ${prompt}. Everything else must remain identical.`
+            },
+            {
+              inline_data: {
+                mime_type: 'image/jpeg',
+                data: imageData
+              }
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        response_modalities: ['Image'], // Only return image, no text
+        image_config: {
+          aspect_ratio: '1:1'
+        }
+      }
+    }
+
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': env.GEMINI_API_KEY!,
+        },
+        body: JSON.stringify(requestBody),
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.text()
+      console.error(`Gemini generation failed for phoneme ${phoneme}:`, error)
+      throw new Error(`Gemini API error: ${response.status} - ${error}`)
+    }
+
+    const result = await response.json()
+
+    // Extract image from response
+    const imagePart = result.candidates?.[0]?.content?.parts?.find((p: any) => p.inline_data)
+    if (!imagePart?.inline_data?.data) {
+      throw new Error('No image data in Gemini response')
+    }
+
+    // Convert base64 to data URL
+    const mimeType = imagePart.inline_data.mime_type || 'image/jpeg'
+    const imageUrl = `data:${mimeType};base64,${imagePart.inline_data.data}`
+
+    return {
+      imageUrl,
+      phoneme,
+      generationTime: Date.now() - startTime,
+    }
+  } catch (error) {
+    console.error('Gemini generation error:', error)
     throw error
   }
 }
@@ -294,17 +631,35 @@ async function generateWithReplicate(
 
 /**
  * Generate all 9 mouth variations for a base image
- * This creates a complete set for lip-sync animation
+ * TWO-STEP PROCESS for maximum stability (BFL only):
+ * 1. Normalize uploaded image into FLUX training data space
+ * 2. Generate all mouth variations from that normalized base
+ *
+ * For Gemini: Uses conversational editing with same base image for consistency
  */
 export async function generateAllMouthVariations(
   env: Env,
   baseImageUrl: string,
   onProgress?: (phoneme: string, index: number, total: number) => void,
-  provider: 'bfl' | 'fal' | 'replicate' | 'auto' = 'auto'
+  provider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto' = 'auto'
 ): Promise<Record<string, string>> {
   const phonemes = ['X', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
   const results: Record<string, string> = {}
 
+  // STEP 1: Generate normalized base image (only for BFL provider)
+  let normalizedBase = baseImageUrl
+  if (provider === 'bfl' || (provider === 'auto' && env.BFL_API_KEY && !env.GEMINI_API_KEY)) {
+    console.log(`🎨 TWO-STEP PROCESS (BFL): First normalizing base image for stability...`)
+    try {
+      normalizedBase = await generateNormalizedBase(env, baseImageUrl)
+      console.log(`✅ Using normalized base for all variations: ${normalizedBase.substring(0, 50)}...`)
+    } catch (error) {
+      console.error(`⚠️ Base normalization failed, using original:`, error)
+      normalizedBase = baseImageUrl
+    }
+  }
+
+  // STEP 2: Generate all mouth variations from normalized base
   let completed = 0
   const total = phonemes.length
 
@@ -313,7 +668,7 @@ export async function generateAllMouthVariations(
     try {
       onProgress?.(phoneme, completed, total)
 
-      const result = await generateMouthVariation(env, baseImageUrl, phoneme, provider)
+      const result = await generateMouthVariation(env, normalizedBase, phoneme, provider)
       results[phoneme] = result.imageUrl
 
       completed++

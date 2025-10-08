@@ -32,7 +32,7 @@ interface AppState {
   showAuthModal: boolean
   showAvatarCustomizer: boolean
   language: 'en' | 'de'
-  aiProvider: 'bfl' | 'fal' | 'replicate' | 'auto'
+  aiProvider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto'
 
   // Actions
   setSessionId: (id: string) => void
@@ -47,7 +47,7 @@ interface AppState {
   setShowAuthModal: (show: boolean) => void
   setShowAvatarCustomizer: (show: boolean) => void
   setLanguage: (lang: 'en' | 'de') => void
-  setAiProvider: (provider: 'bfl' | 'fal' | 'replicate' | 'auto') => void
+  setAiProvider: (provider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto') => void
   reset: () => void
 }
 

@@ -44,7 +44,9 @@ export class SupabaseClient {
       } else if (key === 'limit') {
         params.append('limit', value.toString())
       } else {
-        params.append(key, `eq.${value}`)
+        // Check if value already has an operator (gte., lt., etc.)
+        const hasOperator = typeof value === 'string' && /^(eq|gte|gt|lte|lt|neq|like|ilike|is|in|cs|cd|sl|sr|nxl|nxr|adj|ov|fts|plfts|phfts|wfts)\./.test(value)
+        params.append(key, hasOperator ? value : `eq.${value}`)
       }
     })
 

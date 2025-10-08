@@ -17,6 +17,8 @@ export async function checkUsageLimits(
   const today = new Date().toISOString().split('T')[0]
 
   try {
+    console.log('🔍 Checking usage limits for session:', sessionId)
+
     // Check user daily limit
     const userUsageQuery: any = { date: today }
     if (userId) {
@@ -25,10 +27,13 @@ export async function checkUsageLimits(
       userUsageQuery.session_id = sessionId
     }
 
+    console.log('🔍 User usage query:', userUsageQuery)
     const userUsage = await db.select('daily_usage', userUsageQuery)
+    console.log('🔍 User usage result:', userUsage)
     const conversationsToday = userUsage[0]?.conversation_count || 0
 
     if (conversationsToday >= DAILY_LIMIT) {
+      console.log('❌ Daily limit reached:', conversationsToday, '>=', DAILY_LIMIT)
       return {
         allowed: false,
         error: 'Daily limit reached (20 conversations). Try again tomorrow!',
@@ -38,10 +43,12 @@ export async function checkUsageLimits(
 
     // Check system monthly limit
     const monthStart = new Date().toISOString().slice(0, 7) + '-01'
+    console.log('🔍 Monthly usage query - month start:', monthStart)
     const monthlyUsage = await db.select('daily_usage', {
       select: 'conversation_count',
       date: `gte.${monthStart}`,
     })
+    console.log('🔍 Monthly usage result:', monthlyUsage)
 
     const totalMonthly = monthlyUsage.reduce(
       (sum: number, row: any) => sum + (row.conversation_count || 0),
@@ -49,6 +56,7 @@ export async function checkUsageLimits(
     )
 
     if (totalMonthly >= MONTHLY_LIMIT) {
+      console.log('❌ Monthly limit reached:', totalMonthly, '>=', MONTHLY_LIMIT)
       return {
         allowed: false,
         error: 'Demo capacity reached this month (2000 conversations). Try next month!',
@@ -56,6 +64,7 @@ export async function checkUsageLimits(
       }
     }
 
+    console.log('✅ Usage limits OK - remaining:', DAILY_LIMIT - conversationsToday)
     return {
       allowed: true,
       remaining: DAILY_LIMIT - conversationsToday,
