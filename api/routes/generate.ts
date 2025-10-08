@@ -8,7 +8,7 @@ import { generateAllMouthVariations } from '../services/flux'
 export interface GenerateRequest {
   imageUrl: string
   sessionId: string
-  provider?: 'fal' | 'replicate' | 'auto'
+  provider?: 'bfl' | 'fal' | 'replicate' | 'auto'
 }
 
 export interface GenerateResponse {

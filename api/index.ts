@@ -18,6 +18,7 @@ export interface Env {
   GOOGLE_TTS_API_KEY: string
   SUPABASE_URL: string
   SUPABASE_SERVICE_KEY: string
+  BFL_API_KEY?: string
   FAL_API_KEY?: string
   REPLICATE_API_KEY?: string
   ENVIRONMENT: string

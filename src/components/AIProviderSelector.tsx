@@ -12,11 +12,12 @@ const AIProviderSelector = () => {
       <label className="text-sm font-medium text-gray-700">AI Provider:</label>
       <select
         value={aiProvider}
-        onChange={(e) => setAiProvider(e.target.value as 'fal' | 'replicate' | 'auto')}
+        onChange={(e) => setAiProvider(e.target.value as 'bfl' | 'fal' | 'replicate' | 'auto')}
         className="px-3 py-1.5 bg-white border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:border-primary-500 focus:border-primary-500 focus:outline-none transition-colors"
       >
         <option value="auto">🤖 Auto (Fastest Available)</option>
-        <option value="fal">⚡ fal.ai (Recommended)</option>
+        <option value="bfl">🌲 Black Forest Labs (Direct)</option>
+        <option value="fal">⚡ fal.ai</option>
         <option value="replicate">🔄 Replicate</option>
       </select>
 
@@ -27,20 +28,23 @@ const AIProviderSelector = () => {
           </svg>
         </button>
 
-        <div className="hidden group-hover:block absolute right-0 top-6 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
+        <div className="hidden group-hover:block absolute right-0 top-6 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl z-50">
           <div className="space-y-2">
             <div>
-              <strong>Auto:</strong> Uses the fastest available service (fal.ai preferred)
+              <strong>Auto:</strong> Uses fastest available (BFL &gt; fal.ai &gt; Replicate)
+            </div>
+            <div>
+              <strong>Black Forest Labs:</strong> Official API, highest quality, ~$0.04 per image
             </div>
             <div>
               <strong>fal.ai:</strong> Fast (2-4s/image), ~$0.02-0.05 per image
             </div>
             <div>
-              <strong>Replicate:</strong> Slower but reliable, ~$0.03-0.10 per image
+              <strong>Replicate:</strong> Reliable alternative, ~$0.03-0.10 per image
             </div>
           </div>
           <div className="mt-2 pt-2 border-t border-gray-700 text-gray-400">
-            Add your API key to <code>.dev.vars</code> file
+            Add <code>BFL_API_KEY</code>, <code>FAL_API_KEY</code>, or <code>REPLICATE_API_KEY</code> to <code>.dev.vars</code>
           </div>
         </div>
       </div>

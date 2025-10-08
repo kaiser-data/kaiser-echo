@@ -41,12 +41,20 @@ export async function generateMouthVariation(
   env: Env,
   baseImageUrl: string,
   phoneme: string,
-  provider: 'fal' | 'replicate' | 'auto' = 'auto'
+  provider: 'bfl' | 'fal' | 'replicate' | 'auto' = 'auto'
 ): Promise<FluxGenerationResult> {
   const startTime = Date.now()
   const prompt = PHONEME_PROMPTS[phoneme] || PHONEME_PROMPTS.A
 
   // User selected specific provider
+  if (provider === 'bfl') {
+    if (!env.BFL_API_KEY) {
+      throw new Error('BFL_API_KEY not configured. Add it to .dev.vars or switch to "auto" provider.')
+    }
+    console.log('🎨 Using Black Forest Labs direct API (user selected)')
+    return await generateWithBlackForest(env, baseImageUrl, phoneme, prompt, startTime)
+  }
+
   if (provider === 'fal') {
     if (!env.FAL_API_KEY) {
       throw new Error('FAL_API_KEY not configured. Add it to .dev.vars or switch to "auto" provider.')
@@ -63,15 +71,18 @@ export async function generateMouthVariation(
     return await generateWithReplicate(env, baseImageUrl, phoneme, prompt, startTime)
   }
 
-  // Auto mode: Priority FAL > REPLICATE
-  if (env.FAL_API_KEY) {
+  // Auto mode: Priority BFL > FAL > REPLICATE
+  if (env.BFL_API_KEY) {
+    console.log('🎨 Using Black Forest Labs direct API (auto-detected)')
+    return await generateWithBlackForest(env, baseImageUrl, phoneme, prompt, startTime)
+  } else if (env.FAL_API_KEY) {
     console.log('🎨 Using fal.ai (auto-detected)')
     return await generateWithFal(env, baseImageUrl, phoneme, prompt, startTime)
   } else if (env.REPLICATE_API_KEY) {
     console.log('🎨 Using Replicate (auto-detected)')
     return await generateWithReplicate(env, baseImageUrl, phoneme, prompt, startTime)
   } else {
-    throw new Error('No API key configured. Add FAL_API_KEY or REPLICATE_API_KEY to .dev.vars')
+    throw new Error('No API key configured. Add BFL_API_KEY, FAL_API_KEY, or REPLICATE_API_KEY to .dev.vars')
   }
 }
 
@@ -129,12 +140,86 @@ async function generateWithFal(
 }
 
 /**
- * Note: Black Forest Labs (BFL) does not provide a direct API.
- * FLUX models are accessed through third-party platforms:
- * - fal.ai (recommended - fastest and most affordable)
- * - Replicate (good alternative)
- * - Self-hosted (RunPod, Modal, etc.)
+ * Generate using Black Forest Labs direct API (api.bfl.ai)
  */
+async function generateWithBlackForest(
+  env: Env,
+  baseImageUrl: string,
+  phoneme: string,
+  prompt: string,
+  startTime: number
+): Promise<FluxGenerationResult> {
+  try {
+    // Step 1: Submit image-to-image generation request
+    const response = await fetch('https://api.bfl.ai/v1/flux-pro-1.1', {
+      method: 'POST',
+      headers: {
+        'x-key': env.BFL_API_KEY!,
+        'Content-Type': 'application/json',
+        'accept': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt: `photorealistic portrait, same person, ${prompt}, professional photography, high detail, consistent lighting, front-facing, sharp focus`,
+        image_url: baseImageUrl,
+        strength: 0.75, // Keep most of the original image
+        num_inference_steps: 28,
+        guidance_scale: 3.5,
+        num_images: 1,
+        enable_safety_checker: false,
+        output_format: 'jpeg',
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      console.error(`BFL generation failed for phoneme ${phoneme}:`, error)
+      throw new Error(`BFL API error: ${response.status}`)
+    }
+
+    const result = await response.json()
+
+    // Step 2: Poll for completion using the polling URL
+    const pollingUrl = result.polling_url || `https://api.bfl.ai/v1/get_result?id=${result.id}`
+
+    let pollResult: any
+    let attempts = 0
+    const maxAttempts = 60 // 60 attempts * 2 seconds = 2 minutes max
+
+    while (attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 2000)) // Poll every 2 seconds
+
+      const pollResponse = await fetch(pollingUrl, {
+        headers: {
+          'x-key': env.BFL_API_KEY!,
+          'accept': 'application/json',
+        },
+      })
+
+      pollResult = await pollResponse.json()
+
+      if (pollResult.status === 'Ready') {
+        break
+      } else if (pollResult.status === 'Error' || pollResult.status === 'Failed') {
+        throw new Error(`BFL generation failed: ${pollResult.error || pollResult.status}`)
+      }
+
+      attempts++
+    }
+
+    if (!pollResult || pollResult.status !== 'Ready') {
+      throw new Error('BFL generation timeout - took longer than 2 minutes')
+    }
+
+    return {
+      imageUrl: pollResult.result.sample,
+      phoneme,
+      generationTime: Date.now() - startTime,
+    }
+  } catch (error) {
+    console.error('Black Forest Labs API generation error:', error)
+    throw error
+  }
+}
 
 /**
  * Generate using Replicate
@@ -215,7 +300,7 @@ export async function generateAllMouthVariations(
   env: Env,
   baseImageUrl: string,
   onProgress?: (phoneme: string, index: number, total: number) => void,
-  provider: 'fal' | 'replicate' | 'auto' = 'auto'
+  provider: 'bfl' | 'fal' | 'replicate' | 'auto' = 'auto'
 ): Promise<Record<string, string>> {
   const phonemes = ['X', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
   const results: Record<string, string> = {}
@@ -272,9 +357,9 @@ export async function generateBatch(
   env: Env,
   baseImageUrl: string,
   phonemes: string[],
-  provider: 'fal' | 'replicate' | 'auto' = 'auto'
+  provider: 'bfl' | 'fal' | 'replicate' | 'auto' = 'auto'
 ): Promise<Record<string, string>> {
-  const apiKey = env.FAL_API_KEY || env.REPLICATE_API_KEY
+  const apiKey = env.BFL_API_KEY || env.FAL_API_KEY || env.REPLICATE_API_KEY
 
   if (!apiKey) {
     throw new Error('API key not configured')
