@@ -29,6 +29,7 @@ export interface AvatarConfig {
   mouthY?: number // Mouth vertical position (0-100%)
   mouthSize?: number // Mouth size scale (0.5-2.0)
   eyeY?: number // Eye vertical position (0-100%)
+  generatedVariations?: Record<string, string> // AI-generated mouth variations (phoneme -> imageUrl)
 }
 
 export const DEFAULT_AVATAR_CONFIG: AvatarConfig = {

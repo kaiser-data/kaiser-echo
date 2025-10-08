@@ -10,6 +10,7 @@ import { handleChat } from './handlers/chat'
 import { handleGetFacts } from './handlers/facts'
 import { handleSendMagicLink, handleVerifyMagicLink } from './handlers/auth'
 import { handleCustomizeAvatar } from './handlers/avatar'
+import { handleGenerateVariations } from './routes/generate'
 import { corsHeaders, handleCors } from './utils/cors'
 
 export interface Env {
@@ -17,6 +18,9 @@ export interface Env {
   GOOGLE_TTS_API_KEY: string
   SUPABASE_URL: string
   SUPABASE_SERVICE_KEY: string
+  FAL_API_KEY?: string
+  BLACK_FOREST_API_KEY?: string
+  REPLICATE_API_KEY?: string
   ENVIRONMENT: string
 }
 
@@ -31,6 +35,7 @@ router.get('/api/facts', handleGetFacts)
 router.post('/api/auth/send-magic-link', handleSendMagicLink)
 router.post('/api/auth/verify', handleVerifyMagicLink)
 router.post('/api/customize-avatar', handleCustomizeAvatar)
+router.post('/api/generate-variations', handleGenerateVariations)
 
 // Health check
 router.get('/api/health', () => {

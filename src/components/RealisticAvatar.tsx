@@ -11,10 +11,12 @@ const RealisticAvatar = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationFrameRef = useRef<number>()
   const uploadedImageRef = useRef<HTMLImageElement | null>(null)
+  const variationImagesRef = useRef<Map<PhonemeType, HTMLImageElement>>(new Map())
 
   const [isImageLoaded, setIsImageLoaded] = useState(false)
   const [blinkState, setBlinkState] = useState(0) // 0 = open, 1 = closing, 2 = closed, 3 = opening
   const [currentPhoneme, setCurrentPhoneme] = useState<PhonemeType>('X')
+  const [useAIVariations, setUseAIVariations] = useState(false)
 
   const { avatarConfig, emotion, voiceState } = useAppStore()
 
@@ -46,6 +48,36 @@ const RealisticAvatar = () => {
     }
   }, [avatarConfig.uploadedImage])
 
+  // Load AI-generated variations
+  useEffect(() => {
+    if (avatarConfig.generatedVariations) {
+      const phonemes: PhonemeType[] = ['X', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+      let loadedCount = 0
+
+      phonemes.forEach((phoneme) => {
+        const url = avatarConfig.generatedVariations![phoneme]
+        if (url) {
+          const img = new Image()
+          img.onload = () => {
+            variationImagesRef.current.set(phoneme, img)
+            loadedCount++
+            if (loadedCount === phonemes.length) {
+              setUseAIVariations(true)
+              console.log('✅ All AI variations loaded')
+            }
+          }
+          img.onerror = () => {
+            console.error(`Failed to load AI variation for phoneme ${phoneme}`)
+          }
+          img.src = url
+        }
+      })
+    } else {
+      setUseAIVariations(false)
+      variationImagesRef.current.clear()
+    }
+  }, [avatarConfig.generatedVariations])
+
   // Blink animation
   useEffect(() => {
     const blinkInterval = setInterval(() => {
@@ -69,33 +101,45 @@ const RealisticAvatar = () => {
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      if (isImageLoaded && uploadedImageRef.current) {
-        // Draw uploaded image
-        ctx.drawImage(uploadedImageRef.current, 0, 0, canvas.width, canvas.height)
+      if (isImageLoaded) {
+        // Use AI-generated variation if available
+        if (useAIVariations && variationImagesRef.current.has(currentPhoneme)) {
+          const variationImg = variationImagesRef.current.get(currentPhoneme)!
+          ctx.drawImage(variationImg, 0, 0, canvas.width, canvas.height)
 
-        // Use configurable positions or defaults
-        const mouthXPercent = avatarConfig.mouthX || 50
-        const mouthYPercent = avatarConfig.mouthY || 70
-        const mouthSizeScale = avatarConfig.mouthSize || 1.0
-        const eyeYPercent = avatarConfig.eyeY || 40
+          // Add blink overlay
+          if (blinkState > 0) {
+            const eyeYPercent = avatarConfig.eyeY || 40
+            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent)
+          }
+        } else if (uploadedImageRef.current) {
+          // Fallback to overlay method
+          ctx.drawImage(uploadedImageRef.current, 0, 0, canvas.width, canvas.height)
 
-        // Calculate mouth position
-        const mouthCenterX = (canvas.width * mouthXPercent) / 100
-        const mouthCenterY = (canvas.height * mouthYPercent) / 100
-        const mouthWidth = (canvas.width * 0.15) * mouthSizeScale
-        const mouthHeight = (canvas.height * 0.1) * mouthSizeScale
+          // Use configurable positions or defaults
+          const mouthXPercent = avatarConfig.mouthX || 50
+          const mouthYPercent = avatarConfig.mouthY || 70
+          const mouthSizeScale = avatarConfig.mouthSize || 1.0
+          const eyeYPercent = avatarConfig.eyeY || 40
 
-        // Draw animated mouth based on phoneme
-        drawAnimatedMouth(ctx, currentPhoneme, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
+          // Calculate mouth position
+          const mouthCenterX = (canvas.width * mouthXPercent) / 100
+          const mouthCenterY = (canvas.height * mouthYPercent) / 100
+          const mouthWidth = (canvas.width * 0.15) * mouthSizeScale
+          const mouthHeight = (canvas.height * 0.1) * mouthSizeScale
 
-        // Add blink overlay with configurable eye position
-        if (blinkState > 0) {
-          drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent)
-        }
+          // Draw animated mouth based on phoneme
+          drawAnimatedMouth(ctx, currentPhoneme, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
 
-        // Add subtle emotion effects
-        if (emotion === 'happy' && voiceState !== 'speaking') {
-          drawEmotionOverlay(ctx, canvas.width, canvas.height, 'happy')
+          // Add blink overlay with configurable eye position
+          if (blinkState > 0) {
+            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent)
+          }
+
+          // Add subtle emotion effects
+          if (emotion === 'happy' && voiceState !== 'speaking') {
+            drawEmotionOverlay(ctx, canvas.width, canvas.height, 'happy')
+          }
         }
       } else {
         // No image uploaded - show placeholder
@@ -318,7 +362,12 @@ const RealisticAvatar = () => {
         </div>
         {voiceState === 'speaking' && currentPhoneme !== 'X' && (
           <div className="text-xs text-purple-600 mt-1 font-mono">
-            Phoneme: [{currentPhoneme}] • Realistic Lip-Sync
+            Phoneme: [{currentPhoneme}] • {useAIVariations ? 'AI-Generated' : 'Overlay'} Lip-Sync
+          </div>
+        )}
+        {useAIVariations && (
+          <div className="text-xs text-green-600 mt-1">
+            ✨ Using AI-generated photorealistic variations
           </div>
         )}
       </div>
