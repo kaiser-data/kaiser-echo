@@ -121,6 +121,7 @@ const RealisticAvatar = () => {
           const mouthYPercent = avatarConfig.mouthY || 70
           const mouthSizeScale = avatarConfig.mouthSize || 1.0
           const eyeYPercent = avatarConfig.eyeY || 40
+          const eyeSpacingScale = avatarConfig.eyeSpacing || 1.0
 
           // Calculate mouth position
           const mouthCenterX = (canvas.width * mouthXPercent) / 100
@@ -131,9 +132,9 @@ const RealisticAvatar = () => {
           // Draw animated mouth based on phoneme
           drawAnimatedMouth(ctx, currentPhoneme, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
 
-          // Add blink overlay with configurable eye position
+          // Add blink overlay with configurable eye position and spacing
           if (blinkState > 0) {
-            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent)
+            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent, eyeSpacingScale)
           }
 
           // Add subtle emotion effects
@@ -270,10 +271,11 @@ const RealisticAvatar = () => {
     width: number,
     height: number,
     state: number,
-    eyeYPercent: number = 40
+    eyeYPercent: number = 40,
+    eyeSpacingScale: number = 1.0
   ) => {
     const eyeY = (height * eyeYPercent) / 100
-    const eyeSpacing = width * 0.15
+    const eyeSpacing = (width * 0.15) * eyeSpacingScale
     const eyeWidth = width * 0.08
 
     const blinkProgress = state === 1 ? 0.5 : state === 2 ? 1.0 : 0.5
