@@ -1,0 +1,35 @@
+# Kaiser Echo API Environment Variables
+# Copy this file to .dev.vars and fill in your API keys
+
+# Required - Core Services
+GROQ_API_KEY=your_groq_api_key_here
+GOOGLE_TTS_API_KEY=your_google_tts_api_key_here
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_KEY=your_supabase_service_role_key
+
+# Optional - AI Image Generation Providers
+# You need at least ONE of these for AI avatar generation
+# Priority when using "auto" mode: Gemini > BFL > FAL > Replicate
+
+# Gemini 2.5 Flash Image (Recommended - Fast & Stable)
+# Get key: https://aistudio.google.com/app/apikey
+# Free tier: 60 requests/minute
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Black Forest Labs FLUX Ultra (Most Realistic)
+# Get key: https://api.bfl.ai/
+# Cost: ~$0.04 per image
+BFL_API_KEY=your_bfl_api_key_here
+
+# FAL.ai (Fastest)
+# Get key: https://fal.ai/dashboard/keys
+# Cost: Variable pricing
+FAL_API_KEY=your_fal_api_key_here
+
+# Replicate
+# Get key: https://replicate.com/account/api-tokens
+# Cost: Pay per use
+REPLICATE_API_KEY=your_replicate_api_key_here
+
+# Environment
+ENVIRONMENT=development
