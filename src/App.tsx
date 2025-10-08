@@ -6,6 +6,7 @@ import VoiceInterface from './components/VoiceInterface'
 import ChatHistory from './components/ChatHistory'
 import AvatarCustomizer from './components/AvatarCustomizer'
 import AvatarUploader from './components/AvatarUploader'
+import AvatarPositionControls from './components/AvatarPositionControls'
 import AuthModal from './components/AuthModal'
 import LanguageSelector from './components/LanguageSelector'
 
@@ -69,6 +70,8 @@ function App() {
           >
             {avatarConfig.uploadedImage ? '🖼️ Change Avatar' : '📸 Upload Avatar'}
           </button>
+
+          {avatarConfig.uploadedImage && <AvatarPositionControls />}
 
           {(messages.length > 0 || facts.length > 0) && (
             <button

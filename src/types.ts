@@ -25,6 +25,10 @@ export interface AvatarConfig {
   glassesStyle: 'round' | 'square' | 'none'
   accessory: 'none' | 'earrings' | 'hat' | 'bow'
   uploadedImage?: string // Base64 encoded image for realistic avatar
+  mouthX?: number // Mouth horizontal position (0-100%)
+  mouthY?: number // Mouth vertical position (0-100%)
+  mouthSize?: number // Mouth size scale (0.5-2.0)
+  eyeY?: number // Eye vertical position (0-100%)
 }
 
 export const DEFAULT_AVATAR_CONFIG: AvatarConfig = {
