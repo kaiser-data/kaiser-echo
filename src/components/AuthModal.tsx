@@ -87,13 +87,22 @@ const AuthModal = () => {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? 'Sending...' : 'Send Magic Link'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(false)}
+              className="btn-secondary flex-1"
+            >
+              Maybe Later
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Sending...' : 'Send Magic Link'}
+            </button>
+          </div>
 
           <div className="text-xs text-gray-500 text-center">
             No password needed. We'll send you a secure link to sign in.

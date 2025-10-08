@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import { useAppStore } from './store/useAppStore'
 import Avatar from './components/Avatar'
+import RealisticAvatar from './components/RealisticAvatar'
 import VoiceInterface from './components/VoiceInterface'
 import ChatHistory from './components/ChatHistory'
 import AvatarCustomizer from './components/AvatarCustomizer'
+import AvatarUploader from './components/AvatarUploader'
 import AuthModal from './components/AuthModal'
 import LanguageSelector from './components/LanguageSelector'
 
@@ -12,17 +14,23 @@ function App() {
     user,
     messages,
     facts,
+    avatarConfig,
     showAuthModal,
     showAvatarCustomizer,
     setShowAuthModal,
     setShowAvatarCustomizer,
+    reset,
   } = useAppStore()
 
-  // Show auth modal after 3 message exchanges (6 messages total)
+  // Show auth modal after 10 message exchanges (20 messages total)
+  // Only show once per session (won't re-appear if closed)
   useEffect(() => {
-    if (!user && messages.length >= 6 && !showAuthModal) {
+    const hasShownAuthModal = sessionStorage.getItem('authModalShown')
+
+    if (!user && messages.length >= 20 && !showAuthModal && !hasShownAuthModal) {
       const timer = setTimeout(() => {
         setShowAuthModal(true)
+        sessionStorage.setItem('authModalShown', 'true')
       }, 2000)
 
       return () => clearTimeout(timer)
@@ -46,12 +54,34 @@ function App() {
         <div className="flex justify-center items-center gap-4 mb-8 flex-wrap">
           <LanguageSelector />
 
+          {!avatarConfig.uploadedImage && (
+            <button
+              onClick={() => setShowAvatarCustomizer(true)}
+              className="btn-secondary"
+            >
+              🎨 Customize Avatar
+            </button>
+          )}
+
           <button
             onClick={() => setShowAvatarCustomizer(true)}
             className="btn-secondary"
           >
-            🎨 Customize Avatar
+            {avatarConfig.uploadedImage ? '🖼️ Change Avatar' : '📸 Upload Avatar'}
           </button>
+
+          {(messages.length > 0 || facts.length > 0) && (
+            <button
+              onClick={() => {
+                if (confirm('Clear all messages and memory? This will start a fresh conversation.')) {
+                  reset()
+                }
+              }}
+              className="btn-secondary"
+            >
+              🗑️ Clear Memory
+            </button>
+          )}
 
           {!user && (
             <button
@@ -73,7 +103,7 @@ function App() {
         <div className="grid md:grid-cols-2 gap-8 items-start">
           {/* Left Column - Avatar and Voice */}
           <div className="space-y-8">
-            <Avatar />
+            {avatarConfig.uploadedImage ? <RealisticAvatar /> : <Avatar />}
             <VoiceInterface />
 
             {/* Memory Indicator */}
@@ -128,7 +158,7 @@ function App() {
       </div>
 
       {/* Modals */}
-      {showAvatarCustomizer && <AvatarCustomizer />}
+      {showAvatarCustomizer && <AvatarUploader />}
       {showAuthModal && <AuthModal />}
     </div>
   )

@@ -68,13 +68,13 @@ function buildSystemPrompt(
   const basePrompt =
     language === 'de'
       ? `Du bist Kaiser Echo, ein freundlicher und hilfsbereiter Sprachassistent.
-Du sprichst fließend Deutsch und Englisch.
 Du hast ein Gedächtnis und kannst dich an frühere Gespräche erinnern.
-Sei prägnant, freundlich und natürlich in deinen Antworten.`
+Sei prägnant, freundlich und natürlich in deinen Antworten.
+WICHTIG: Antworte IMMER auf Deutsch, unabhängig von der Sprache der Eingabe.`
       : `You are Kaiser Echo, a friendly and helpful voice assistant.
-You speak both German and English fluently.
 You have memory and can remember previous conversations.
-Be concise, friendly, and natural in your responses.`
+Be concise, friendly, and natural in your responses.
+IMPORTANT: Always respond in English, regardless of the input language.`
 
   if (facts.length === 0) {
     return basePrompt

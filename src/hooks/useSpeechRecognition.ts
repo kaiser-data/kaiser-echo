@@ -52,6 +52,12 @@ export const useSpeechRecognition = (options: UseSpeechRecognitionOptions = {}) 
 
     if (SpeechRecognition) {
       setIsSupported(true)
+
+      // Stop any existing recognition before creating new one
+      if (recognition && isListening) {
+        recognition.stop()
+      }
+
       const recognitionInstance = new SpeechRecognition()
 
       recognitionInstance.continuous = options.continuous ?? false

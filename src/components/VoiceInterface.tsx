@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis'
 import { apiClient } from '../utils/api'
+import { phonemeSyncManager } from '../utils/phonemeSync'
 import type { Message } from '../types'
 
 const VoiceInterface = () => {
@@ -41,6 +42,10 @@ const VoiceInterface = () => {
     cancel: cancelSpeech,
   } = useSpeechSynthesis({
     language: language === 'de' ? 'de-DE' : 'en-US',
+    onUtteranceCreated: (utterance) => {
+      // Pass utterance to phoneme sync manager for realistic avatar animation
+      phonemeSyncManager.setUtterance(utterance)
+    },
   })
 
   // Update voice state based on current status
@@ -154,6 +159,7 @@ const VoiceInterface = () => {
 
   const handleStopSpeaking = () => {
     cancelSpeech()
+    phonemeSyncManager.reset()
   }
 
   if (!isRecognitionSupported) {

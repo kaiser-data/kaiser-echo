@@ -114,6 +114,7 @@ export const useAppStore = create<AppState>()(
       setLanguage: (language) => set({ language }),
 
       reset: () => set({
+        sessionId: generateSessionId(),
         messages: [],
         facts: [],
         emotion: 'neutral',

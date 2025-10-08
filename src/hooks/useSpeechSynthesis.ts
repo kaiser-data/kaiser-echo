@@ -1,16 +1,18 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 interface UseSpeechSynthesisOptions {
   language?: string
   rate?: number
   pitch?: number
   volume?: number
+  onUtteranceCreated?: (utterance: SpeechSynthesisUtterance) => void
 }
 
 export const useSpeechSynthesis = (options: UseSpeechSynthesisOptions = {}) => {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   useEffect(() => {
     setIsSupported('speechSynthesis' in window)
@@ -37,6 +39,7 @@ export const useSpeechSynthesis = (options: UseSpeechSynthesisOptions = {}) => {
       window.speechSynthesis.cancel()
 
       const utterance = new SpeechSynthesisUtterance(text)
+      currentUtteranceRef.current = utterance
 
       // Set language
       const targetLang = language || options.language || 'en-US'
@@ -59,11 +62,18 @@ export const useSpeechSynthesis = (options: UseSpeechSynthesisOptions = {}) => {
 
       utterance.onend = () => {
         setIsSpeaking(false)
+        currentUtteranceRef.current = null
       }
 
       utterance.onerror = (error) => {
         console.error('Speech synthesis error:', error)
         setIsSpeaking(false)
+        currentUtteranceRef.current = null
+      }
+
+      // Notify parent component about utterance creation (for phoneme analysis)
+      if (options.onUtteranceCreated) {
+        options.onUtteranceCreated(utterance)
       }
 
       window.speechSynthesis.speak(utterance)

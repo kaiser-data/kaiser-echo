@@ -24,6 +24,7 @@ export interface AvatarConfig {
   hasGlasses: boolean
   glassesStyle: 'round' | 'square' | 'none'
   accessory: 'none' | 'earrings' | 'hat' | 'bow'
+  uploadedImage?: string // Base64 encoded image for realistic avatar
 }
 
 export const DEFAULT_AVATAR_CONFIG: AvatarConfig = {
