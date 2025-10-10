@@ -229,8 +229,8 @@ const RealisticAvatar = () => {
           ctx.restore()
 
           // Debug: Draw mouth region outline when position controls are open
-          // Show debug rectangle only when position controls are open AND not speaking
-          if (showPositionControls && voiceState !== 'speaking') {
+          // ALWAYS show debug rectangle when position controls are open for easier adjustment
+          if (showPositionControls) {
             ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'
             ctx.lineWidth = 3
             ctx.strokeRect(mouthX, mouthY, mouthWidth, mouthHeight)

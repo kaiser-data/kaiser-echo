@@ -142,6 +142,7 @@ export const useAppStore = create<AppState>()(
         sessionId: state.sessionId,
         user: state.user,
         avatarConfig: state.avatarConfig,
+        avatarRenderMode: state.avatarRenderMode,
         language: state.language,
         aiProvider: state.aiProvider,
         facts: state.facts,

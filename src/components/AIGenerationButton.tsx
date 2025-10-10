@@ -128,6 +128,21 @@ const AIGenerationButton = () => {
       console.log('✨ Variations received:', Object.keys(data.variations || {}).length)
       console.log('📝 Variation keys:', Object.keys(data.variations || {}))
 
+      // Validate we actually received variations
+      if (!data.variations || Object.keys(data.variations).length === 0) {
+        throw new Error('Backend returned success but no variations were generated. Please try again.')
+      }
+
+      // Validate we have all 6 expected phonemes
+      const expectedPhonemes = ['X', 'A', 'B', 'C', 'E', 'H']
+      const receivedPhonemes = Object.keys(data.variations)
+      const missingPhonemes = expectedPhonemes.filter(p => !receivedPhonemes.includes(p))
+
+      if (missingPhonemes.length > 0) {
+        console.warn(`⚠️ Missing phonemes: ${missingPhonemes.join(', ')}`)
+        console.warn(`⚠️ Only received: ${receivedPhonemes.join(', ')}`)
+      }
+
       // Save generated variations
       const updatedConfig = {
         ...avatarConfig,
@@ -136,13 +151,25 @@ const AIGenerationButton = () => {
       console.log('💾 Saving avatar config:', updatedConfig)
       setAvatarConfig(updatedConfig)
 
+      // Auto-switch to AI render mode after successful generation
+      setAvatarRenderMode('ai')
+      console.log('✅ Auto-switched to AI render mode')
+
       setProgress({ current: 6, total: 6, phoneme: 'Complete!' })
 
       console.log('✅ After save, checking store...')
       setTimeout(() => {
         const currentConfig = useAppStore.getState().avatarConfig
+        const currentRenderMode = useAppStore.getState().avatarRenderMode
         console.log('🔍 Store avatarConfig after save:', currentConfig)
         console.log('🔍 Store generatedVariations:', currentConfig.generatedVariations)
+        console.log('🔍 Store avatarRenderMode:', currentRenderMode)
+
+        // Final validation
+        if (!currentConfig.generatedVariations || Object.keys(currentConfig.generatedVariations).length === 0) {
+          console.error('❌ CRITICAL: Variations were not saved to store!')
+          setError('Variations generated but failed to save. Please try regenerating.')
+        }
       }, 100)
 
       // Show success message

@@ -31,10 +31,13 @@ const AvatarUploader = () => {
         localStorage.setItem('kaiser-echo-avatar-image', result)
 
         // Update store to use uploaded avatar
+        // IMPORTANT: Preserve existing generatedVariations when uploading new image
         const store = useAppStore.getState()
         store.setAvatarConfig({
           ...store.avatarConfig,
           uploadedImage: result,
+          // Keep generated variations - user must explicitly regenerate to replace them
+          generatedVariations: store.avatarConfig.generatedVariations,
         })
       } catch (error) {
         console.error('Failed to save avatar:', error)
