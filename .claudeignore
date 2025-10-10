@@ -1,0 +1,24 @@
+# Prevent Claude Code from reading sensitive files
+# These files will still work normally for your application
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+.env.development
+.env.vars
+
+# Any backup or alternative env files
+*.env
+*.env.*
+
+# Credentials and key files
+credentials.json
+secrets.json
+*.key
+*.pem
+*.crt
+
+# Service account files
+*service-account*.json
+*credentials*.json
