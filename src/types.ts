@@ -27,7 +27,10 @@ export interface AvatarConfig {
   uploadedImage?: string // Base64 encoded image for realistic avatar
   mouthX?: number // Mouth horizontal position (0-100%)
   mouthY?: number // Mouth vertical position (0-100%)
-  mouthSize?: number // Mouth size scale (0.5-2.0)
+  mouthSize?: number // Mouth size scale (0.5-2.0) - for overlay method
+  mouthRegionWidth?: number // AI mouth region width percentage (10-50%)
+  mouthRegionHeight?: number // AI mouth region height percentage (10-40%)
+  eyeX?: number // Eye horizontal position (0-100%)
   eyeY?: number // Eye vertical position (0-100%)
   eyeSpacing?: number // Eye spacing scale (0.5-2.0)
   eyeSize?: number // Eye size scale (0.5-2.0)

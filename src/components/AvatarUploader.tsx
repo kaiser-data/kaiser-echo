@@ -86,13 +86,20 @@ const AvatarUploader = () => {
   }
 
   return (
-    <div className="card max-w-md mx-auto">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">
-        Upload Your Avatar
-      </h3>
-
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={() => setShowAvatarCustomizer(false)}
+    >
       <div
-        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+        className="card max-w-md mx-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          Upload Your Avatar
+        </h3>
+
+        <div
+          className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
           isDragging
             ? 'border-primary-600 bg-primary-50'
             : 'border-gray-300 hover:border-primary-400 bg-gray-50'
@@ -152,24 +159,25 @@ const AvatarUploader = () => {
             </div>
           </div>
         )}
-      </div>
+        </div>
 
-      <div className="mt-4 text-sm text-gray-600 space-y-2">
-        <p className="font-medium">💡 Tips for best results:</p>
-        <ul className="list-disc list-inside space-y-1 text-xs">
-          <li>Use a front-facing portrait or cartoon image</li>
-          <li>Clear face visibility with neutral expression</li>
-          <li>Good lighting and contrast</li>
-          <li>Square or portrait orientation works best</li>
-        </ul>
-      </div>
+        <div className="mt-4 text-sm text-gray-600 space-y-2">
+          <p className="font-medium">💡 Tips for best results:</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            <li>Use a front-facing portrait or cartoon image</li>
+            <li>Clear face visibility with neutral expression</li>
+            <li>Good lighting and contrast</li>
+            <li>Square or portrait orientation works best</li>
+          </ul>
+        </div>
 
-      <button
-        onClick={() => setShowAvatarCustomizer(false)}
-        className="btn-secondary w-full mt-4"
-      >
-        Close
-      </button>
+        <button
+          onClick={() => setShowAvatarCustomizer(false)}
+          className="btn-secondary w-full mt-4"
+        >
+          Close
+        </button>
+      </div>
     </div>
   )
 }

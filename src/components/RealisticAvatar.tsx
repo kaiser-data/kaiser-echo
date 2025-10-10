@@ -19,14 +19,14 @@ const RealisticAvatar = () => {
   const [blinkState, setBlinkState] = useState(0) // 0 = open, 1 = closing, 2 = closed, 3 = opening
   const [currentMouthPosition, setCurrentMouthPosition] = useState<MouthPosition>('X')
   const [useAIVariations, setUseAIVariations] = useState(false)
-  const [useAudioDriven, setUseAudioDriven] = useState(true) // Prefer audio-driven
+  const [useAudioDriven, setUseAudioDriven] = useState(false) // Use phonemeSyncManager by default (text-based simulation)
 
   // Cross-fade transition state
   const previousMouthPositionRef = useRef<MouthPosition>('X')
   const transitionStartTimeRef = useRef<number>(0)
   const TRANSITION_DURATION_MS = 80 // Fast but smooth cross-fade
 
-  const { avatarConfig, emotion, voiceState } = useAppStore()
+  const { avatarConfig, emotion, voiceState, showPositionControls, avatarRenderMode } = useAppStore()
   const { currentMouthPosition: audioMouthPosition, initializeAnalyzer, stopAnalyzer } = useAudioAnalyzer()
 
   // Update mouth position from audio analyzer (primary method)
@@ -43,12 +43,29 @@ const RealisticAvatar = () => {
     if (!useAudioDriven) {
       const unsubscribe = phonemeSyncManager.subscribe((variationKey) => {
         // Extract base phoneme from variation key (e.g., "X-hold" → "X")
-        const phoneme = variationKey.split('-')[0] as MouthPosition
-        if (phoneme !== previousMouthPositionRef.current) {
+        let phoneme = variationKey.split('-')[0] as PhonemeType
+
+        // Map 9 phonemes to 6 available AI-generated mouth positions
+        const phonemeMapping: Record<PhonemeType, MouthPosition> = {
+          'X': 'X', // Silence → closed mouth
+          'A': 'A', // Rest → slightly open
+          'B': 'B', // Wide open → wide open
+          'C': 'C', // Tight lips → pressed lips
+          'D': 'A', // Medium open → map to slightly open
+          'E': 'E', // Round → puckered
+          'F': 'C', // Teeth on lip → map to pressed lips
+          'G': 'A', // Tongue visible → map to slightly open
+          'H': 'H', // Wide smile → smile
+        }
+
+        const mappedPhoneme = phonemeMapping[phoneme]
+
+        if (mappedPhoneme !== previousMouthPositionRef.current) {
           transitionStartTimeRef.current = Date.now()
           previousMouthPositionRef.current = currentMouthPosition
+          console.log(`🗣️ Mouth position: ${mappedPhoneme} (from phoneme: ${phoneme})`)
         }
-        setCurrentMouthPosition(phoneme)
+        setCurrentMouthPosition(mappedPhoneme)
       })
 
       return unsubscribe
@@ -105,8 +122,14 @@ const RealisticAvatar = () => {
     }
   }, [avatarConfig.generatedVariations])
 
-  // Blink animation
+  // Blink animation (keep eyes closed while adjusting position)
   useEffect(() => {
+    // Keep eyes fully closed while position controls are open for easier adjustment
+    if (showPositionControls) {
+      setBlinkState(2) // Fully closed
+      return
+    }
+
     const blinkInterval = setInterval(() => {
       setBlinkState(1)
       setTimeout(() => setBlinkState(2), 50)
@@ -115,7 +138,7 @@ const RealisticAvatar = () => {
     }, 3000 + Math.random() * 2000)
 
     return () => clearInterval(blinkInterval)
-  }, [])
+  }, [showPositionControls])
 
   // Main render loop
   useEffect(() => {
@@ -134,31 +157,106 @@ const RealisticAvatar = () => {
         const transitionProgress = Math.min(elapsedTransitionTime / TRANSITION_DURATION_MS, 1.0)
         const isTransitioning = transitionProgress < 1.0
 
-        // Use AI-generated mouth position if available (now 6 key positions)
-        if (useAIVariations && variationImagesRef.current.has(currentMouthPosition)) {
+        // Use AI-generated mouth position if enabled and available (now 6 key positions)
+        if (avatarRenderMode === 'ai' && useAIVariations && variationImagesRef.current.has(currentMouthPosition) && uploadedImageRef.current) {
+          // MOUTH REGION OVERLAY STRATEGY:
+          // The AI generates full faces with different mouth positions using strict consistency prompts.
+          // We extract ONLY the mouth region from AI variations and overlay onto the base image.
+          //
+          // This works because:
+          // 1. AI is instructed to keep everything identical (head position, lighting, background)
+          // 2. We use high image_prompt_strength (0.98-0.99) to preserve non-mouth features
+          // 3. The mouth region is extracted from the SAME coordinates in each variation
+          // 4. User can adjust the mouth region size/position to perfect the alignment
+
+          // 1. Draw the base uploaded image (consistent face)
+          ctx.drawImage(uploadedImageRef.current, 0, 0, canvas.width, canvas.height)
+
+          // 2. Define mouth region (configurable or default to center-bottom)
+          // These values define a rectangle that extracts the mouth from AI variations
+          const mouthXPercent = avatarConfig.mouthX || 50       // Horizontal center (0-100%)
+          const mouthYPercent = avatarConfig.mouthY || 70       // Vertical position (0-100%, 70% = lower third)
+          const mouthWidthPercent = avatarConfig.mouthRegionWidth || 30   // Width as % of face (10-50%)
+          const mouthHeightPercent = avatarConfig.mouthRegionHeight || 20 // Height as % of face (10-40%)
+
+          // Convert percentages to pixel coordinates
+          const mouthX = (canvas.width * (mouthXPercent - mouthWidthPercent / 2)) / 100
+          const mouthY = (canvas.height * (mouthYPercent - mouthHeightPercent / 2)) / 100
+          const mouthWidth = (canvas.width * mouthWidthPercent) / 100
+          const mouthHeight = (canvas.height * mouthHeightPercent) / 100
+
+          // 3. Extract and overlay ONLY the mouth region from AI variation
+          // ctx.drawImage(source, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+          // We use SAME coordinates for source and destination to maintain alignment
+          ctx.save()
+
+          // Optional: Add subtle shadow/feather effect for better blending
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
+          ctx.shadowBlur = 3
           if (isTransitioning && variationImagesRef.current.has(previousMouthPositionRef.current)) {
-            // Cross-fade: draw previous image fading out, then current image fading in
+            // Cross-fade between two mouth regions
             const previousImg = variationImagesRef.current.get(previousMouthPositionRef.current)!
             const currentImg = variationImagesRef.current.get(currentMouthPosition)!
 
-            // Draw previous image with decreasing opacity
+            // Draw previous mouth with decreasing opacity
             ctx.globalAlpha = 1.0 - transitionProgress
-            ctx.drawImage(previousImg, 0, 0, canvas.width, canvas.height)
+            ctx.drawImage(
+              previousImg,
+              mouthX, mouthY, mouthWidth, mouthHeight, // Source region
+              mouthX, mouthY, mouthWidth, mouthHeight  // Destination region
+            )
 
-            // Draw current image with increasing opacity
+            // Draw current mouth with increasing opacity
             ctx.globalAlpha = transitionProgress
-            ctx.drawImage(currentImg, 0, 0, canvas.width, canvas.height)
+            ctx.drawImage(
+              currentImg,
+              mouthX, mouthY, mouthWidth, mouthHeight, // Source region
+              mouthX, mouthY, mouthWidth, mouthHeight  // Destination region
+            )
 
             // Reset alpha
             ctx.globalAlpha = 1.0
           } else {
-            // No transition or transition complete - draw current image normally
+            // Draw current mouth region only
             const variationImg = variationImagesRef.current.get(currentMouthPosition)!
-            ctx.drawImage(variationImg, 0, 0, canvas.width, canvas.height)
+            ctx.drawImage(
+              variationImg,
+              mouthX, mouthY, mouthWidth, mouthHeight, // Source region
+              mouthX, mouthY, mouthWidth, mouthHeight  // Destination region
+            )
           }
 
-          // Blink animation is disabled when using AI-generated variations
-          // (AI variations already include the complete face with eyes)
+          ctx.restore()
+
+          // Debug: Draw mouth region outline when position controls are open
+          // Show debug rectangle only when position controls are open AND not speaking
+          if (showPositionControls && voiceState !== 'speaking') {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'
+            ctx.lineWidth = 3
+            ctx.strokeRect(mouthX, mouthY, mouthWidth, mouthHeight)
+
+            // Draw crosshair at center
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'
+            ctx.lineWidth = 2
+            const centerX = mouthX + mouthWidth / 2
+            const centerY = mouthY + mouthHeight / 2
+            ctx.beginPath()
+            ctx.moveTo(centerX - 10, centerY)
+            ctx.lineTo(centerX + 10, centerY)
+            ctx.moveTo(centerX, centerY - 10)
+            ctx.lineTo(centerX, centerY + 10)
+            ctx.stroke()
+          }
+
+          // Add blink overlay in AI mode too (since we're only overlaying mouth region)
+          const eyeXPercent = avatarConfig.eyeX || 50
+          const eyeYPercent = avatarConfig.eyeY || 40
+          const eyeSpacingScale = avatarConfig.eyeSpacing || 1.0
+          const eyeSizeScale = avatarConfig.eyeSize || 1.0
+
+          if (blinkState > 0) {
+            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeXPercent, eyeYPercent, eyeSpacingScale, eyeSizeScale)
+          }
         } else if (uploadedImageRef.current) {
           // Fallback to overlay method
           ctx.drawImage(uploadedImageRef.current, 0, 0, canvas.width, canvas.height)
@@ -167,6 +265,7 @@ const RealisticAvatar = () => {
           const mouthXPercent = avatarConfig.mouthX || 50
           const mouthYPercent = avatarConfig.mouthY || 70
           const mouthSizeScale = avatarConfig.mouthSize || 1.0
+          const eyeXPercent = avatarConfig.eyeX || 50
           const eyeYPercent = avatarConfig.eyeY || 40
           const eyeSpacingScale = avatarConfig.eyeSpacing || 1.0
           const eyeSizeScale = avatarConfig.eyeSize || 1.0
@@ -177,12 +276,12 @@ const RealisticAvatar = () => {
           const mouthWidth = (canvas.width * 0.15) * mouthSizeScale
           const mouthHeight = (canvas.height * 0.1) * mouthSizeScale
 
-          // Draw animated mouth based on phoneme (extract letter from variation key)
-          drawAnimatedMouth(ctx, phonemeLetter, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
+          // Draw animated mouth based on current mouth position
+          drawAnimatedMouth(ctx, currentMouthPosition, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
 
           // Add blink overlay with configurable eye position, spacing, and size
           if (blinkState > 0) {
-            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeYPercent, eyeSpacingScale, eyeSizeScale)
+            drawBlinkOverlay(ctx, canvas.width, canvas.height, blinkState, eyeXPercent, eyeYPercent, eyeSpacingScale, eyeSizeScale)
           }
 
           // Add subtle emotion effects
@@ -205,7 +304,7 @@ const RealisticAvatar = () => {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isImageLoaded, currentMouthPosition, blinkState, emotion, voiceState, useAIVariations, avatarConfig])
+  }, [isImageLoaded, currentMouthPosition, blinkState, emotion, voiceState, useAIVariations, avatarConfig, showPositionControls, avatarRenderMode])
 
   /**
    * Draw animated mouth overlay based on phoneme
@@ -319,10 +418,12 @@ const RealisticAvatar = () => {
     width: number,
     height: number,
     state: number,
+    eyeXPercent: number = 50,
     eyeYPercent: number = 40,
     eyeSpacingScale: number = 1.0,
     eyeSizeScale: number = 1.0
   ) => {
+    const eyeCenterX = (width * eyeXPercent) / 100
     const eyeY = (height * eyeYPercent) / 100
     const eyeSpacing = (width * 0.15) * eyeSpacingScale
 
@@ -330,9 +431,11 @@ const RealisticAvatar = () => {
     const baseEyeWidth = width * 0.08
     const baseEyeHeight = baseEyeWidth * 0.7
 
-    // Apply size scaling uniformly to both width and height
-    const eyeWidth = baseEyeWidth * eyeSizeScale
-    const eyeHeight = baseEyeHeight * eyeSizeScale
+    // Apply size scaling with limits to prevent rim collision
+    // Max size limited to 1.5 to keep eyes within frame
+    const clampedEyeSize = Math.min(eyeSizeScale, 1.5)
+    const eyeWidth = baseEyeWidth * clampedEyeSize
+    const eyeHeight = baseEyeHeight * clampedEyeSize
 
     // Calculate blink progress (0 = no blink, 1 = fully closed)
     const blinkProgress = state === 1 ? 0.5 : state === 2 ? 1.0 : state === 3 ? 0.5 : 0
@@ -342,10 +445,9 @@ const RealisticAvatar = () => {
     ctx.globalCompositeOperation = 'multiply'
     ctx.fillStyle = 'rgba(180, 150, 130, 0.85)'
 
-    // Calculate positions (ensure perfect symmetry)
-    const centerX = Math.floor(width / 2)
-    const leftEyeX = centerX - eyeSpacing
-    const rightEyeX = centerX + eyeSpacing
+    // Calculate positions using configurable center
+    const leftEyeX = eyeCenterX - eyeSpacing
+    const rightEyeX = eyeCenterX + eyeSpacing
     const eyeRadiusX = eyeWidth / 2
     const eyeRadiusY = blinkHeight
 

@@ -3,11 +3,50 @@ import { useAppStore } from '../store/useAppStore'
 import { apiClient } from '../utils/api'
 
 const AIGenerationButton = () => {
-  const { avatarConfig, setAvatarConfig, aiProvider } = useAppStore()
+  const { avatarConfig, setAvatarConfig, aiProvider, avatarRenderMode, setAvatarRenderMode } = useAppStore()
   const [isGenerating, setIsGenerating] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 6, phoneme: '' })
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
+
+  // Helper function to crop mouth region from uploaded image
+  const cropMouthRegion = async (imageDataUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'))
+          return
+        }
+
+        // Get mouth region parameters from config
+        const mouthXPercent = avatarConfig.mouthX || 50
+        const mouthYPercent = avatarConfig.mouthY || 70
+        const mouthWidthPercent = avatarConfig.mouthRegionWidth || 30
+        const mouthHeightPercent = avatarConfig.mouthRegionHeight || 20
+
+        // Calculate crop region
+        const cropX = (img.width * (mouthXPercent - mouthWidthPercent / 2)) / 100
+        const cropY = (img.height * (mouthYPercent - mouthHeightPercent / 2)) / 100
+        const cropWidth = (img.width * mouthWidthPercent) / 100
+        const cropHeight = (img.height * mouthHeightPercent) / 100
+
+        // Set canvas size to cropped region
+        canvas.width = cropWidth
+        canvas.height = cropHeight
+
+        // Draw cropped region
+        ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
+
+        // Convert to base64
+        resolve(canvas.toDataURL('image/jpeg', 0.95))
+      }
+      img.onerror = () => reject(new Error('Failed to load image'))
+      img.src = imageDataUrl
+    })
+  }
 
   const handleGenerate = async () => {
     if (!avatarConfig.uploadedImage) {
@@ -21,8 +60,29 @@ const AIGenerationButton = () => {
     setShowModal(true)
     setProgress({ current: 0, total: 6, phoneme: 'Starting...' })
 
+    // Simulated progress updates (since we can't get real-time progress without WebSockets)
+    // Each position takes ~11s, so update every ~11s
+    const phonemes = ['X', 'A', 'B', 'C', 'E', 'H']
+    let progressIndex = 0
+    const progressInterval = setInterval(() => {
+      if (progressIndex < phonemes.length) {
+        setProgress({
+          current: progressIndex,
+          total: 6,
+          phoneme: phonemes[progressIndex],
+        })
+        progressIndex++
+      }
+    }, 11000) // Update every 11 seconds
+
     try {
-      console.log('🎨 Starting AI generation request...')
+      console.log('🎨 Cropping mouth region from uploaded image...')
+
+      // Crop the mouth region before sending to AI
+      const croppedMouthImage = await cropMouthRegion(avatarConfig.uploadedImage)
+      console.log('✅ Mouth region cropped successfully')
+
+      console.log('🎨 Starting AI generation request with cropped mouth region...')
 
       // Call backend API to generate 6 key positions with timeout for two-step process
       // Step 1: Base normalization (~14s) + Step 2: 6 positions (~11s each) = ~80s + overhead = ~120s total
@@ -35,9 +95,15 @@ const AIGenerationButton = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageUrl: avatarConfig.uploadedImage,
+          imageUrl: croppedMouthImage, // Send cropped mouth region instead of full image
           sessionId: useAppStore.getState().sessionId,
           provider: aiProvider, // Send user's provider preference
+          cropParams: { // Send crop parameters for backend reference
+            mouthX: avatarConfig.mouthX || 50,
+            mouthY: avatarConfig.mouthY || 70,
+            mouthRegionWidth: avatarConfig.mouthRegionWidth || 30,
+            mouthRegionHeight: avatarConfig.mouthRegionHeight || 20,
+          },
         }),
         signal: controller.signal,
       })
@@ -60,14 +126,24 @@ const AIGenerationButton = () => {
       }
 
       console.log('✨ Variations received:', Object.keys(data.variations || {}).length)
+      console.log('📝 Variation keys:', Object.keys(data.variations || {}))
 
       // Save generated variations
-      setAvatarConfig({
+      const updatedConfig = {
         ...avatarConfig,
         generatedVariations: data.variations,
-      })
+      }
+      console.log('💾 Saving avatar config:', updatedConfig)
+      setAvatarConfig(updatedConfig)
 
       setProgress({ current: 6, total: 6, phoneme: 'Complete!' })
+
+      console.log('✅ After save, checking store...')
+      setTimeout(() => {
+        const currentConfig = useAppStore.getState().avatarConfig
+        console.log('🔍 Store avatarConfig after save:', currentConfig)
+        console.log('🔍 Store generatedVariations:', currentConfig.generatedVariations)
+      }, 100)
 
       // Show success message
       setTimeout(() => {
@@ -81,6 +157,7 @@ const AIGenerationButton = () => {
       }
       setError(err instanceof Error ? err.message : 'Failed to generate variations')
     } finally {
+      clearInterval(progressInterval)
       setIsGenerating(false)
     }
   }
@@ -93,16 +170,51 @@ const AIGenerationButton = () => {
   const hasGeneratedVariations = avatarConfig.generatedVariations &&
     Object.keys(avatarConfig.generatedVariations).length > 0
 
+  console.log('🔍 AIGenerationButton render:', {
+    hasGeneratedVariations,
+    variationKeys: avatarConfig.generatedVariations ? Object.keys(avatarConfig.generatedVariations) : [],
+    avatarRenderMode
+  })
+
   return (
     <>
-      <button
-        onClick={handleGenerate}
-        disabled={isGenerating}
-        className={`btn-secondary text-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-        title="Generate AI-powered realistic mouth variations"
-      >
-        {hasGeneratedVariations ? '🔄 Regenerate AI Mouth' : '✨ Generate AI Mouth'}
-      </button>
+      <div className="flex gap-2 items-center">
+        <button
+          onClick={handleGenerate}
+          disabled={isGenerating}
+          className={`btn-secondary text-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title="Generate AI-powered realistic mouth variations"
+        >
+          {hasGeneratedVariations ? '🔄 Regenerate AI Mouth' : '✨ Generate AI Mouth'}
+        </button>
+
+        {hasGeneratedVariations && (
+          <div className="flex gap-1 bg-purple-50 border border-purple-200 rounded-lg p-1">
+            <button
+              onClick={() => setAvatarRenderMode('ai')}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                avatarRenderMode === 'ai'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+              title="Use AI-generated photorealistic mouth variations"
+            >
+              ✨ AI
+            </button>
+            <button
+              onClick={() => setAvatarRenderMode('overlay')}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                avatarRenderMode === 'overlay'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+              title="Use drawn mouth overlay (faster, less realistic)"
+            >
+              🎨 Overlay
+            </button>
+          </div>
+        )}
+      </div>
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

@@ -21,25 +21,31 @@ export interface FluxGenerationResult {
  * AUDIO-DRIVEN mouth positions (reduced from 27 to 6 for cost efficiency)
  * Each position maps to audio features for real-time analysis
  * Cost: 6 images × $0.04 = $0.24 per avatar (vs $1.08 for 27)
+ *
+ * CRITICAL CONSTRAINTS for successful overlay:
+ * - IDENTICAL head position, angle, and face size
+ * - IDENTICAL lighting, shadows, and background
+ * - ONLY the mouth region changes
+ * - Face must be perfectly centered and forward-facing
  */
 const MOUTH_POSITIONS: Record<string, string> = {
   // X - Silent/Closed (amplitude near zero)
-  X: 'lips gently closed, neutral resting mouth',
+  X: 'Natural closed lips, relaxed neutral expression. Same lip color, same skin texture, same face structure.',
 
   // A - Small Open (low-mid amplitude, neutral frequency)
-  A: 'mouth slightly open, small oval, relaxed jaw',
+  A: 'Lips slightly parted in small oval opening, relaxed jaw. Preserve exact lip color, skin tone, facial features.',
 
   // B - Wide Open (high amplitude, low frequency - "ah" sounds)
-  B: 'mouth WIDE OPEN, jaw dropped, both rows of teeth visible',
+  B: 'Mouth wide open, jaw dropped, teeth visible. Keep identical lip texture, skin color, face structure - only mouth opening changes.',
 
   // C - Lips Pressed (detected silence after vowel - M, B, P sounds)
-  C: 'lips FIRMLY PRESSED together, sealed closed',
+  C: 'Lips pressed firmly together, sealed mouth. Same lip color and texture, same skin tone and facial features.',
 
   // E - Rounded/Pursed (mid frequency, rounded vowels - O, U sounds)
-  E: 'lips PUCKERED FORWARD, rounded O-shape',
+  E: 'Lips puckered forward in rounded O-shape. Preserve lip texture, skin color, face structure - only lip position changes.',
 
   // H - Wide Smile (high frequency - E, I sounds)
-  H: 'lips STRETCHED WIDE, broad smile, teeth showing'
+  H: 'Lips stretched wide in broad smile, teeth showing. Keep exact same lip color, skin texture, facial features.'
 }
 
 /**
@@ -127,9 +133,9 @@ async function generateWithFal(
       },
       body: JSON.stringify({
         image_url: baseImageUrl,
-        prompt: `photorealistic portrait, same person, ${prompt}, professional photography, high detail, consistent lighting, front-facing, sharp focus`,
+        prompt: `KEEP IDENTICAL: exact same person, same head position, same angle, same lighting, same background. ONLY CHANGE mouth: ${prompt}. Professional photography, photorealistic, high detail, sharp focus`,
         negative_prompt:
-          'blurry, low quality, distorted, disfigured, bad anatomy, extra limbs, deformed, unrealistic, different person, cartoon, painting',
+          'different face, different angle, different lighting, different background, blurry, low quality, distorted, disfigured, bad anatomy, extra limbs, deformed, unrealistic, different person, cartoon, painting',
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
@@ -243,6 +249,68 @@ async function uploadBase64ToCloudflare(
 }
 
 /**
+ * Upload generated image from URL to Supabase Storage
+ * Used for BFL-generated images to convert temporary URLs to permanent storage
+ */
+async function uploadGeneratedImageToSupabase(
+  env: Env,
+  imageUrl: string,
+  phoneme: string
+): Promise<string> {
+  console.log(`📥 Downloading generated image for phoneme ${phoneme}...`)
+
+  try {
+    // Download the image from the temporary URL
+    const imageResponse = await fetch(imageUrl)
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`)
+    }
+
+    const imageBuffer = await imageResponse.arrayBuffer()
+    const imageBytes = new Uint8Array(imageBuffer)
+
+    // Determine MIME type from response headers or default to JPEG
+    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+    const extension = contentType.split('/')[1] || 'jpg'
+
+    // Generate unique filename
+    const timestamp = Date.now()
+    const randomId = Math.random().toString(36).substring(2, 15)
+    const filename = `avatars/phoneme-${phoneme}-${timestamp}-${randomId}.${extension}`
+
+    console.log(`📤 Uploading to Supabase Storage: ${filename}`)
+
+    // Upload to Supabase Storage
+    const uploadResponse = await fetch(
+      `${env.SUPABASE_URL}/storage/v1/object/avatars/${filename}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          'Content-Type': contentType,
+        },
+        body: imageBytes,
+      }
+    )
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text()
+      console.error(`❌ Supabase upload failed:`, errorText)
+      throw new Error(`Supabase upload failed: ${uploadResponse.status} - ${errorText}`)
+    }
+
+    // Get public URL
+    const publicUrl = `${env.SUPABASE_URL}/storage/v1/object/public/avatars/${filename}`
+    console.log(`✅ Uploaded successfully: ${publicUrl}`)
+
+    return publicUrl
+  } catch (error) {
+    console.error(`🔴 ERROR uploading generated image to Supabase:`, error)
+    throw new Error(`Failed to upload generated image to Supabase Storage: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
  * Step 1: Generate normalized base image from user upload
  * This creates a FLUX-native image that's closer to training data
  * and provides a stable foundation for mouth variations
@@ -267,11 +335,11 @@ async function generateNormalizedBase(
   }
   const base64Image = btoa(binary)
 
-  // Generate a clean, normalized, frontal portrait
+  // Generate a clean, normalized, frontal portrait with MAXIMUM consistency
   const requestBody = {
-    prompt: `This exact person facing forward, mouth closed, neutral expression`,
+    prompt: `Exact same person, IDENTICAL: face centered, head straight forward, same lighting and background. Only action: close mouth gently, neutral expression`,
     image_prompt: base64Image,
-    image_prompt_strength: 0.95, // HIGHER preservation for more stability
+    image_prompt_strength: 0.98, // MAXIMUM preservation - only normalize face position/angle
     aspect_ratio: '1:1',
     safety_tolerance: 6,
     output_format: 'jpeg',
@@ -368,11 +436,11 @@ async function generateWithBlackForest(
 
     // Step 2: Submit FLUX 1.1 Pro Ultra generation for mouth variation
     // Working from normalized base for maximum stability
-    // ULTRA-MINIMAL prompt focused ONLY on mouth change
+    // CRITICAL: Preserve skin/lip texture, only change mouth shape/opening
     const requestBody = {
-      prompt: `Same person, only change mouth: ${prompt}`,
+      prompt: `Photorealistic portrait. ${prompt} Preserve: exact same skin texture, lip color, lighting, shadows, face structure. Only mouth shape changes.`,
       image_prompt: base64Image, // Base64 image for remixing
-      image_prompt_strength: 0.99, // Maximum preservation = 99% identical, only 1% change for mouth
+      image_prompt_strength: 0.95, // High preservation - allows mouth movement while keeping texture
       aspect_ratio: '1:1',
       safety_tolerance: 6, // Least strict (0-6 scale)
       output_format: 'jpeg',
@@ -486,12 +554,13 @@ async function generateWithGemini(
     }
 
     // Gemini API request with image editing
+    // CRITICAL: Emphasize preserving everything except mouth
     const requestBody = {
       contents: [
         {
           parts: [
             {
-              text: `Same person, only change mouth: ${prompt}`
+              text: `KEEP EVERYTHING IDENTICAL: exact same person, head position, angle, lighting, background. ONLY modify the mouth: ${prompt}. DO NOT change face, eyes, nose, hair, skin, clothing, background, or anything else.`
             },
             {
               inline_data: {
@@ -572,9 +641,9 @@ async function generateWithReplicate(
         version: 'black-forest-labs/flux-dev',
         input: {
           image: baseImageUrl,
-          prompt: `photorealistic portrait, same person, ${prompt}, professional photography, high detail, consistent lighting, front-facing, sharp focus`,
+          prompt: `KEEP IDENTICAL: exact same person, same head position, same angle, same lighting, same background. ONLY CHANGE mouth: ${prompt}. Professional photography, photorealistic, high detail, sharp focus`,
           negative_prompt:
-            'blurry, low quality, distorted, disfigured, bad anatomy, extra limbs, deformed, unrealistic, different person, cartoon, painting',
+            'different face, different angle, different lighting, different background, blurry, low quality, distorted, disfigured, bad anatomy, extra limbs, deformed, unrealistic, different person, cartoon, painting',
           num_inference_steps: 28,
           guidance_scale: 3.5,
           num_outputs: 1,
@@ -663,7 +732,17 @@ export async function generateAllMouthVariations(
       onProgress?.(phoneme, completed, total)
 
       const result = await generateMouthVariation(env, normalizedBase, phoneme, 'hold', provider)
-      results[phoneme] = result.imageUrl
+
+      // Upload to Supabase for permanent storage (BFL URLs expire after ~1 hour)
+      console.log(`📤 Uploading ${phoneme} variation to Supabase...`)
+      try {
+        const permanentUrl = await uploadGeneratedImageToSupabase(env, result.imageUrl, phoneme)
+        results[phoneme] = permanentUrl
+        console.log(`✅ ${phoneme} uploaded to permanent storage`)
+      } catch (uploadError) {
+        console.error(`⚠️ Failed to upload ${phoneme}, using temporary URL:`, uploadError)
+        results[phoneme] = result.imageUrl // Fallback to temporary URL
+      }
 
       completed++
       console.log(`✅ Generated ${phoneme} (${completed}/${total}) in ${result.generationTime}ms`)

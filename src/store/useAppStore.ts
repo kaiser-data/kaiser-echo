@@ -31,6 +31,8 @@ interface AppState {
   // UI state
   showAuthModal: boolean
   showAvatarCustomizer: boolean
+  showPositionControls: boolean
+  avatarRenderMode: 'overlay' | 'ai' // Which rendering mode to use
   language: 'en' | 'de'
   aiProvider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto'
 
@@ -46,6 +48,8 @@ interface AppState {
   setVoiceState: (state: VoiceState) => void
   setShowAuthModal: (show: boolean) => void
   setShowAvatarCustomizer: (show: boolean) => void
+  setShowPositionControls: (show: boolean) => void
+  setAvatarRenderMode: (mode: 'overlay' | 'ai') => void
   setLanguage: (lang: 'en' | 'de') => void
   setAiProvider: (provider: 'bfl' | 'fal' | 'replicate' | 'gemini' | 'auto') => void
   reset: () => void
@@ -77,6 +81,8 @@ export const useAppStore = create<AppState>()(
       voiceState: 'idle',
       showAuthModal: false,
       showAvatarCustomizer: false,
+      showPositionControls: false,
+      avatarRenderMode: 'ai', // Default to AI mode if generated, otherwise fallback to overlay
       language: 'en',
       aiProvider: 'auto',
 
@@ -113,6 +119,10 @@ export const useAppStore = create<AppState>()(
       setShowAuthModal: (show) => set({ showAuthModal: show }),
 
       setShowAvatarCustomizer: (show) => set({ showAvatarCustomizer: show }),
+
+      setShowPositionControls: (show) => set({ showPositionControls: show }),
+
+      setAvatarRenderMode: (mode) => set({ avatarRenderMode: mode }),
 
       setLanguage: (language) => set({ language }),
 

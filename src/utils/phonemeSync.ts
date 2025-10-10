@@ -127,11 +127,14 @@ class PhonemeSyncManager {
 
   /**
    * Simulate phonemes from text with timeline-based playback
-   * This uses realistic durations for each phoneme variation
+   * Uses simplified natural mouth movements for better visual results
    */
   private startPhonemeSimulation(utterance: SpeechSynthesisUtterance) {
     const text = utterance.text
-    const phonemes = this.textToPhonemes(text)
+
+    // Simplified approach: Create natural-looking mouth movements
+    // instead of trying to map every character to a phoneme
+    const phonemes = this.generateNaturalMouthSequence(text)
 
     // Build timeline with 27 variations
     this.buildTimeline(phonemes)
@@ -166,6 +169,59 @@ class PhonemeSyncManager {
       }
       this.setCurrentVariation('X-hold')
     })
+  }
+
+  /**
+   * Generate natural-looking mouth movement sequence
+   * Uses word patterns and natural speech rhythms instead of character-by-character mapping
+   */
+  private generateNaturalMouthSequence(text: string): PhonemeType[] {
+    const phonemes: PhonemeType[] = []
+    const words = text.toLowerCase().split(/\s+/)
+
+    // Available mouth positions for AI variations: X, A, B, C, E, H
+    // X = closed, A = slightly open, B = wide open, C = pressed, E = round, H = smile
+    const openVowels: PhonemeType[] = ['B', 'A'] // Wide and medium open
+    const closedSounds: PhonemeType[] = ['C', 'A'] // Pressed and slight open
+    const roundSounds: PhonemeType[] = ['E', 'A'] // Round and medium
+    const smileSounds: PhonemeType[] = ['H', 'A'] // Smile and medium
+
+    words.forEach((word, wordIndex) => {
+      // Add variety based on word length
+      const syllableCount = Math.max(1, Math.floor(word.length / 3))
+
+      for (let i = 0; i < syllableCount; i++) {
+        // Create natural speech pattern: consonant-vowel-consonant rhythm
+
+        // Opening (consonant approach)
+        if (word.includes('m') || word.includes('b') || word.includes('p')) {
+          phonemes.push('C') // Closed lips
+        } else {
+          phonemes.push('A') // Slight open
+        }
+
+        // Peak vowel sound (main mouth opening)
+        if (word.includes('o') || word.includes('u')) {
+          phonemes.push('E') // Round mouth for o/u sounds
+        } else if (word.includes('e') || word.includes('i')) {
+          phonemes.push('H') // Smile for e/i sounds
+        } else if (word.includes('a')) {
+          phonemes.push('B') // Wide open for a sounds
+        } else {
+          phonemes.push('A') // Default medium open
+        }
+
+        // Closing (consonant)
+        phonemes.push('A') // Return to neutral
+      }
+
+      // Brief pause between words
+      if (wordIndex < words.length - 1) {
+        phonemes.push('X')
+      }
+    })
+
+    return phonemes
   }
 
   /**
