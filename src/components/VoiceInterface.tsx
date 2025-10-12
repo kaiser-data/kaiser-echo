@@ -9,6 +9,7 @@ import type { Message } from '../types'
 const VoiceInterface = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [textInput, setTextInput] = useState('')
+  const [silenceTimer, setSilenceTimer] = useState<NodeJS.Timeout | null>(null)
 
   const {
     sessionId,
@@ -32,7 +33,7 @@ const VoiceInterface = () => {
     reset: resetTranscript,
   } = useSpeechRecognition({
     language: language === 'de' ? 'de-DE' : 'en-US',
-    continuous: false,
+    continuous: true,
     interimResults: true,
   })
 
@@ -48,6 +49,39 @@ const VoiceInterface = () => {
       phonemeSyncManager.setUtterance(utterance)
     },
   })
+
+  // Auto-stop after 5 seconds of silence
+  useEffect(() => {
+    if (isListening) {
+      // Clear any existing timer when listening starts
+      if (silenceTimer) {
+        clearTimeout(silenceTimer)
+        setSilenceTimer(null)
+      }
+
+      // Start a 5-second timer whenever interim transcript stops changing
+      if (interimTranscript) {
+        // Clear previous timer
+        if (silenceTimer) clearTimeout(silenceTimer)
+
+        // Set new timer
+        const timer = setTimeout(() => {
+          stopListening()
+        }, 5000)
+        setSilenceTimer(timer)
+      }
+    } else {
+      // Clear timer when not listening
+      if (silenceTimer) {
+        clearTimeout(silenceTimer)
+        setSilenceTimer(null)
+      }
+    }
+
+    return () => {
+      if (silenceTimer) clearTimeout(silenceTimer)
+    }
+  }, [isListening, interimTranscript, stopListening])
 
   // Update voice state based on current status
   useEffect(() => {
@@ -66,11 +100,15 @@ const VoiceInterface = () => {
     }
   }, [isListening, isProcessing, isSpeaking, setVoiceState, setEmotion])
 
-  // Handle completed transcript
+  // Handle completed transcript - only when manually stopped
   useEffect(() => {
     if (transcript && !isListening && !isProcessing) {
-      handleSendMessage(transcript.trim())
-      resetTranscript()
+      // Small delay to ensure transcript is complete
+      const timer = setTimeout(() => {
+        handleSendMessage(transcript.trim())
+        resetTranscript()
+      }, 500)
+      return () => clearTimeout(timer)
     }
   }, [transcript, isListening, isProcessing])
 
@@ -229,7 +267,7 @@ const VoiceInterface = () => {
       <div className="text-center min-h-[60px]">
         {isListening && (
           <div className="space-y-2">
-            <p className="text-sm text-gray-600">Listening...</p>
+            <p className="text-sm text-green-600 font-medium">🎤 Listening - Auto-stops after 5 seconds of silence</p>
             {interimTranscript && (
               <p className="text-lg text-gray-800 italic">{interimTranscript}</p>
             )}
@@ -271,8 +309,8 @@ const VoiceInterface = () => {
       {/* Instructions */}
       <div className="text-xs text-gray-500 text-center max-w-sm">
         {language === 'de'
-          ? 'Drücken Sie die Mikrofon-Taste und sprechen Sie. Ihre Nachricht wird automatisch gesendet.'
-          : 'Press the mic button and speak. Your message will be sent automatically.'}
+          ? 'Klicken Sie zum Starten und sprechen Sie. Stoppt automatisch nach 5 Sekunden Stille.'
+          : 'Click to start speaking. Automatically stops after 5 seconds of silence.'}
       </div>
 
       {/* Text Input Alternative */}

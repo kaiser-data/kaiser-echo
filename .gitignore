@@ -10,9 +10,11 @@ dist/
 
 # Environment variables
 .env
-.env.local
-.env.production
+.env.*
 .dev.vars
+*.env.vars
+api/.env.vars
+api/.dev.vars
 
 # Editor
 .vscode/
