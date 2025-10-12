@@ -185,15 +185,16 @@ const RealisticAvatar = () => {
           const mouthWidth = (canvas.width * mouthWidthPercent) / 100
           const mouthHeight = (canvas.height * mouthHeightPercent) / 100
 
-          // 3. Extract and overlay ONLY the mouth region from AI variation
+          // 3. Extract and overlay ONLY the mouth region from AI variation - ONLY when speaking or adjusting
           // ctx.drawImage(source, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
           // We use SAME coordinates for source and destination to maintain alignment
-          ctx.save()
+          if (voiceState === 'speaking' || showPositionControls) {
+            ctx.save()
 
-          // Optional: Add subtle shadow/feather effect for better blending
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
-          ctx.shadowBlur = 3
-          if (isTransitioning && variationImagesRef.current.has(previousMouthPositionRef.current)) {
+            // Optional: Add subtle shadow/feather effect for better blending
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
+            ctx.shadowBlur = 3
+            if (isTransitioning && variationImagesRef.current.has(previousMouthPositionRef.current)) {
             // Cross-fade between two mouth regions
             const previousImg = variationImagesRef.current.get(previousMouthPositionRef.current)!
             const currentImg = variationImagesRef.current.get(currentMouthPosition)!
@@ -226,7 +227,8 @@ const RealisticAvatar = () => {
             )
           }
 
-          ctx.restore()
+            ctx.restore()
+          }
 
           // Debug: Draw mouth region outline when position controls are open
           // ALWAYS show debug rectangle when position controls are open for easier adjustment
@@ -276,8 +278,10 @@ const RealisticAvatar = () => {
           const mouthWidth = (canvas.width * 0.15) * mouthSizeScale
           const mouthHeight = (canvas.height * 0.1) * mouthSizeScale
 
-          // Draw animated mouth based on current mouth position
-          drawAnimatedMouth(ctx, currentMouthPosition, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
+          // Draw animated mouth based on current mouth position - ONLY when speaking
+          if (voiceState === 'speaking' || showPositionControls) {
+            drawAnimatedMouth(ctx, currentMouthPosition, mouthCenterX, mouthCenterY, mouthWidth, mouthHeight)
+          }
 
           // Add blink overlay with configurable eye position, spacing, and size
           if (blinkState > 0) {
@@ -451,14 +455,14 @@ const RealisticAvatar = () => {
     const eyeRadiusX = eyeWidth / 2
     const eyeRadiusY = blinkHeight
 
-    // Left eyelid
+    // Left eyelid - rotated 90 degrees
     ctx.beginPath()
-    ctx.ellipse(leftEyeX, eyeY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2)
+    ctx.ellipse(leftEyeX, eyeY, eyeRadiusX, eyeRadiusY, Math.PI / 2, 0, Math.PI * 2)
     ctx.fill()
 
-    // Right eyelid (mirror symmetry)
+    // Right eyelid (mirror symmetry) - rotated 90 degrees
     ctx.beginPath()
-    ctx.ellipse(rightEyeX, eyeY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2)
+    ctx.ellipse(rightEyeX, eyeY, eyeRadiusX, eyeRadiusY, Math.PI / 2, 0, Math.PI * 2)
     ctx.fill()
 
     ctx.restore()

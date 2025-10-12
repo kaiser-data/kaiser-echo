@@ -12,7 +12,9 @@
     "worker:deploy": "wrangler deploy api/index.ts"
   },
   "dependencies": {
+    "@cartesia/cartesia-js": "^2.2.5",
     "face-api.js": "^0.22.2",
+    "microsoft-cognitiveservices-speech-sdk": "^1.46.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "replicate": "^1.2.0",

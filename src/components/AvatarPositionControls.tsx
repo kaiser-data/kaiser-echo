@@ -188,49 +188,46 @@ const AvatarPositionControls = () => {
                 </div>
               </div>
 
-              {/* Mouth Size (Overlay) / Region Size (AI) */}
+              {/* Unified Mouth Size Controls */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {avatarRenderMode === 'ai'
-                    ? `Mouth Region: ${position.mouthRegionWidth}% × ${position.mouthRegionHeight}%`
-                    : `Mouth Size: ${position.mouthSize.toFixed(1)}x`}
+                  Mouth Size: {position.mouthRegionWidth}% × {position.mouthRegionHeight}%
                 </label>
-                {avatarRenderMode === 'ai' ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="80"
-                        value={position.mouthRegionWidth}
-                        onChange={(e) => handlePositionChange({ mouthRegionWidth: parseInt(e.target.value) })}
-                        className="w-full"
-                      />
-                      <div className="text-xs text-gray-500 text-center mt-1">Width</div>
-                    </div>
-                    <div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="60"
-                        value={position.mouthRegionHeight}
-                        onChange={(e) => handlePositionChange({ mouthRegionHeight: parseInt(e.target.value) })}
-                        className="w-full"
-                      />
-                      <div className="text-xs text-gray-500 text-center mt-1">Height</div>
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="80"
+                      value={position.mouthRegionWidth}
+                      onChange={(e) => {
+                        const width = parseInt(e.target.value)
+                        // Update both region size and overlay size proportionally
+                        const sizeScale = width / 50 // Scale based on 50% as baseline
+                        handlePositionChange({
+                          mouthRegionWidth: width,
+                          mouthSize: Math.max(0.5, Math.min(2.0, sizeScale))
+                        })
+                      }}
+                      className="w-full"
+                    />
+                    <div className="text-xs text-gray-500 text-center mt-1">Width</div>
                   </div>
-                ) : (
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2.0"
-                    step="0.1"
-                    value={position.mouthSize}
-                    onChange={(e) => handlePositionChange({ mouthSize: parseFloat(e.target.value) })}
-                    className="w-full"
-                  />
-                )}
+                  <div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="60"
+                      value={position.mouthRegionHeight}
+                      onChange={(e) => {
+                        const height = parseInt(e.target.value)
+                        handlePositionChange({ mouthRegionHeight: height })
+                      }}
+                      className="w-full"
+                    />
+                    <div className="text-xs text-gray-500 text-center mt-1">Height</div>
+                  </div>
+                </div>
               </div>
 
               {/* Eye Position */}

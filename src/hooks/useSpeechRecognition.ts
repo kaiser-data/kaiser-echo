@@ -15,6 +15,7 @@ interface ISpeechRecognition extends EventTarget {
   continuous: boolean
   interimResults: boolean
   lang: string
+  maxAlternatives: number
   start: () => void
   stop: () => void
   abort: () => void
@@ -22,6 +23,9 @@ interface ISpeechRecognition extends EventTarget {
   onend: ((event: Event) => void) | null
   onresult: ((event: SpeechRecognitionEvent) => void) | null
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+  onnomatch: ((event: Event) => void) | null
+  onsoundstart: ((event: Event) => void) | null
+  onsoundend: ((event: Event) => void) | null
 }
 
 declare global {
@@ -35,6 +39,8 @@ interface UseSpeechRecognitionOptions {
   language?: string
   continuous?: boolean
   interimResults?: boolean
+  maxAlternatives?: number
+  confidenceThreshold?: number
 }
 
 export const useSpeechRecognition = (options: UseSpeechRecognitionOptions = {}) => {
@@ -63,6 +69,7 @@ export const useSpeechRecognition = (options: UseSpeechRecognitionOptions = {}) 
       recognitionInstance.continuous = options.continuous ?? false
       recognitionInstance.interimResults = options.interimResults ?? true
       recognitionInstance.lang = options.language || 'en-US'
+      recognitionInstance.maxAlternatives = options.maxAlternatives || 3
 
       recognitionInstance.onstart = () => {
         setIsListening(true)
