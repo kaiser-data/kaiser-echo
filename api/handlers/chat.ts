@@ -6,8 +6,9 @@ import type { Env } from '../index'
 import { jsonResponse } from '../utils/cors'
 import { SupabaseClient } from '../utils/supabase'
 import { checkUsageLimits, incrementUsage } from '../utils/limits'
-import { extractFacts } from '../services/factExtraction'
+// import { extractFacts } from '../services/factExtraction' // Legacy - now using MemoryManager
 import { generateResponse } from '../services/llm'
+import { MemoryManager } from '../services/memoryManager'
 
 interface ChatRequest {
   sessionId: string
@@ -44,6 +45,7 @@ export async function handleChat(request: Request, env: Env): Promise<Response> 
     }
 
     const db = new SupabaseClient(env)
+    const memoryManager = new MemoryManager(env)
 
     // Ensure session exists
     await ensureSession(db, sessionId, userId, language)
@@ -70,18 +72,21 @@ export async function handleChat(request: Request, env: Env): Promise<Response> 
       content: msg.content,
     }))
 
-    // Get user facts
-    const factsQuery: any = { session_id: sessionId, select: '*' }
-    if (userId) {
-      factsQuery.user_id = userId
+    // Get professional memory summary
+    const memoryProfile = await memoryManager.getMemoryProfile(sessionId, userId)
+
+    // Convert memory profile to facts format for LLM compatibility
+    const facts: Array<{ type: string; value: string }> = []
+    for (const [category, categoryFacts] of Object.entries(memoryProfile)) {
+      for (const [subcategory, fact] of Object.entries(categoryFacts)) {
+        if (fact && fact.importance !== 'low') { // Only include medium/high importance facts
+          facts.push({
+            type: `${category}.${subcategory}`,
+            value: fact.value,
+          })
+        }
+      }
     }
-
-    const userFacts = await db.select('user_facts', factsQuery)
-
-    const facts = userFacts.map((fact: any) => ({
-      type: fact.fact_type,
-      value: fact.fact_value,
-    }))
 
     const memoryUsed = facts.length > 0
 
@@ -102,15 +107,15 @@ export async function handleChat(request: Request, env: Env): Promise<Response> 
       language,
     })
 
-    // Extract facts from conversation every 3 messages
+    // Extract facts from conversation every 3 messages using professional memory manager
     const messageCount = await db.select('messages', {
       session_id: sessionId,
       select: 'id',
     })
 
     if (messageCount.length % 6 === 0) {
-      // Extract facts in background (don't await)
-      extractAndStoreFacts(db, sessionId, userId, recentMessages).catch((error) =>
+      // Extract facts in background using professional memory manager
+      extractAndStoreFacts(memoryManager, sessionId, userId, recentMessages).catch((error) =>
         console.error('Error extracting facts:', error)
       )
     }
@@ -172,40 +177,23 @@ async function ensureSession(
 }
 
 async function extractAndStoreFacts(
-  db: SupabaseClient,
+  memoryManager: MemoryManager,
   sessionId: string,
   userId: string | undefined,
   messages: Array<{ role: string; content: string }>
 ): Promise<void> {
   try {
-    // This would call the LLM to extract facts
-    // For now, we'll implement basic pattern matching
     const conversationText = messages
       .map((m) => `${m.role}: ${m.content}`)
       .join('\n')
 
-    // Simple fact extraction (in production, use LLM)
-    const facts = await extractFacts(conversationText)
+    // Use professional memory manager for advanced fact extraction
+    const facts = await memoryManager.extractFacts(conversationText, sessionId, userId)
 
-    // Store new facts
-    for (const fact of facts) {
-      // Check if fact already exists
-      const existing = await db.select('user_facts', {
-        session_id: sessionId,
-        fact_type: fact.type,
-        fact_value: fact.value,
-      })
+    // Store facts using the professional memory manager
+    await memoryManager.storeFacts(facts)
 
-      if (!existing || existing.length === 0) {
-        await db.insert('user_facts', {
-          user_id: userId || null,
-          session_id: sessionId,
-          fact_type: fact.type,
-          fact_value: fact.value,
-          confidence: fact.confidence || 0.8,
-        })
-      }
-    }
+    console.log(`Extracted and stored ${facts.length} facts for session ${sessionId}`)
   } catch (error) {
     console.error('Error extracting and storing facts:', error)
   }

@@ -11,6 +11,7 @@ import { handleGetFacts } from './handlers/facts'
 import { handleSendMagicLink, handleVerifyMagicLink } from './handlers/auth'
 import { handleCustomizeAvatar } from './handlers/avatar'
 import { handleGenerateVariations } from './routes/generate'
+import { handleGetMemory, handleUpdateFact, handleDeleteFact, handleExtractFacts, handleMemoryInsights } from './handlers/memory'
 import { corsHeaders, handleCors } from './utils/cors'
 
 export interface Env {
@@ -37,6 +38,13 @@ router.post('/api/auth/send-magic-link', handleSendMagicLink)
 router.post('/api/auth/verify', handleVerifyMagicLink)
 router.post('/api/customize-avatar', handleCustomizeAvatar)
 router.post('/api/generate-variations', handleGenerateVariations)
+
+// Professional Memory Management API
+router.get('/api/memory', handleGetMemory)
+router.put('/api/memory/fact', handleUpdateFact)
+router.delete('/api/memory/fact', handleDeleteFact)
+router.post('/api/memory/extract', handleExtractFacts)
+router.get('/api/memory/insights', handleMemoryInsights)
 
 // Health check
 router.get('/api/health', () => {

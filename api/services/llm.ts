@@ -131,18 +131,75 @@ Be natural and friendly. Occasionally ask a casual question to learn more about 
 
   const factsPrompt =
     language === 'de'
-      ? `\n\nMEIN GEDÄCHTNIS ÜBER DICH:
+      ? `\n\nMEIN PROFESSIONELLES GEDÄCHTNISSYSTEM ÜBER DICH:
 ${facts
-  .map((f) => `• ${f.type}: ${f.value}`)
+  .map((f) => {
+    const [category] = f.type.split('.')
+    const categoryEmoji = getCategoryEmoji(category)
+    return `${categoryEmoji} ${formatFactType(f.type)}: ${f.value}`
+  })
   .join('\n')}
 
-Perfekt! Mein AI-Gedächtnis funktioniert einwandfrei. Nutze diese Informationen natürlich in Gesprächen. Erwähne gelegentlich stolz dein digitales Gedächtnis, aber übertreibe nicht. Lass es organisch in die Unterhaltung einfließen!`
-      : `\n\nMY MEMORY ABOUT YOU:
+Hervorragend! Mein fortschrittliches AI-Gedächtnissystem hat dein Profil gespeichert. Nutze diese strukturierten Informationen natürlich und kontextbezogen in Gesprächen. Demonstriere stolz deine präzise Erinnerungsfähigkeit, aber bleibe authentisch und organisch!`
+      : `\n\nMY PROFESSIONAL MEMORY SYSTEM ABOUT YOU:
 ${facts
-  .map((f) => `• ${f.type}: ${f.value}`)
+  .map((f) => {
+    const [category] = f.type.split('.')
+    const categoryEmoji = getCategoryEmoji(category)
+    return `${categoryEmoji} ${formatFactType(f.type)}: ${f.value}`
+  })
   .join('\n')}
 
-Perfect! My AI memory is working flawlessly. Use this information naturally in conversations. Occasionally mention your digital memory proudly, but don't overdo it. Let it flow organically into the conversation!`
+Excellent! My advanced AI memory system has your profile stored. Use this structured information naturally and contextually in conversations. Proudly demonstrate your precise recall abilities, but stay authentic and organic!`
 
   return basePrompt + factsPrompt
+}
+
+function getCategoryEmoji(category: string): string {
+  const emojiMap: Record<string, string> = {
+    identity: '👤',
+    location: '📍',
+    profession: '💼',
+    interests: '🎯',
+    preferences: '⭐',
+    relationships: '👥',
+    goals: '🎯',
+    context: '💭'
+  }
+  return emojiMap[category] || '📝'
+}
+
+function formatFactType(factType: string): string {
+  const [category, subcategory] = factType.split('.')
+
+  const formatMap: Record<string, string> = {
+    'identity.name': 'Name',
+    'identity.age': 'Age',
+    'identity.gender': 'Gender',
+    'location.residence': 'Lives in',
+    'location.workplace': 'Works in',
+    'location.origin': 'From',
+    'profession.title': 'Job Title',
+    'profession.company': 'Company',
+    'profession.industry': 'Industry',
+    'profession.experience': 'Experience',
+    'interests.hobby': 'Hobby',
+    'interests.sport': 'Sport',
+    'interests.music': 'Music',
+    'interests.technology': 'Technology',
+    'interests.entertainment': 'Entertainment',
+    'preferences.food': 'Food Preference',
+    'preferences.language': 'Language Preference',
+    'preferences.style': 'Style Preference',
+    'relationships.family': 'Family',
+    'relationships.friends': 'Friends',
+    'relationships.status': 'Relationship Status',
+    'goals.personal': 'Personal Goal',
+    'goals.professional': 'Career Goal',
+    'goals.learning': 'Learning Goal',
+    'context.recent_topic': 'Recent Topic',
+    'context.current_project': 'Current Project'
+  }
+
+  return formatMap[factType] || `${category} ${subcategory}`
 }
